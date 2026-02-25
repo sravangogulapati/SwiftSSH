@@ -128,7 +128,7 @@ swiftssh/
 ### Tasks
 
 #### `internal/config/parser.go`
-- [ ] Implement `Parse(configPath string) ([]Host, error)`:
+- [x] Implement `Parse(configPath string) ([]Host, error)`:
   - Read file line by line
   - Track current `Host` block; on each new `Host` keyword, save the previous and start a new one
   - Resolve `Include` directives: support glob patterns (e.g., `Include ~/.ssh/conf.d/*`), expand `~` to home dir, recurse into each matched file
@@ -141,17 +141,17 @@ swiftssh/
   - Skip `Host *` (wildcard / defaults block) — do not add it to the list
 
 #### `internal/config/parser_test.go`
-- [ ] Test basic single-host config file
-- [ ] Test multi-host config with all fields (Hostname, User, Port)
-- [ ] Test magic comment parsing: `# @group Work, Personal` → `Groups: ["Work", "Personal"]`
-- [ ] Test magic comment with extra whitespace around commas
-- [ ] Test duplicate `Host dev` blocks appear as two separate entries
-- [ ] Test `Include` directive with a relative path
-- [ ] Test `Include` directive with a glob pattern
-- [ ] Test recursive `Include` (A includes B which includes C)
-- [ ] Test circular `Include` protection (no infinite loop)
-- [ ] Test `Host *` block is excluded from results
-- [ ] Test graceful handling of a missing `Include`-d file (log warning, continue)
+- [x] Test basic single-host config file
+- [x] Test multi-host config with all fields (Hostname, User, Port)
+- [x] Test magic comment parsing: `# @group Work, Personal` → `Groups: ["Work", "Personal"]`
+- [x] Test magic comment with extra whitespace around commas
+- [x] Test duplicate `Host dev` blocks appear as two separate entries
+- [x] Test `Include` directive with a relative path
+- [x] Test `Include` directive with a glob pattern
+- [x] Test recursive `Include` (A includes B which includes C)
+- [x] Test circular `Include` protection (no infinite loop)
+- [x] Test `Host *` block is excluded from results
+- [x] Test graceful handling of a missing `Include`-d file (log warning, continue)
 
 ---
 
@@ -164,29 +164,29 @@ swiftssh/
 ### Tasks
 
 #### `internal/state/state.go`
-- [ ] Define `State` struct:
+- [x] Define `State` struct:
   ```go
   type State struct {
       Connections map[string]int `json:"connections"` // key: host alias, value: count
       FirstRun    bool           `json:"first_run"`
   }
   ```
-- [ ] Implement `Load(path string) (*State, error)`:
+- [x] Implement `Load(path string) (*State, error)`:
   - If file doesn't exist, return a fresh `State{FirstRun: true, Connections: map[string]int{}}`
   - Unmarshal JSON; tolerate unknown fields (use `json.Decoder` with `DisallowUnknownFields(false)`)
-- [ ] Implement `Save(path string, s *State) error`:
+- [x] Implement `Save(path string, s *State) error`:
   - Use `platform.EnsureDir` on the parent directory before writing
   - Write atomically: write to a temp file, then rename over the target
-- [ ] Implement `RecordConnection(s *State, alias string)` — increment counter for alias
-- [ ] Implement `FrequentHosts(s *State, hosts []config.Host, n int) []config.Host` — return top `n` hosts by connection count, preserving order for ties
+- [x] Implement `RecordConnection(s *State, alias string)` — increment counter for alias
+- [x] Implement `FrequentHosts(s *State, hosts []config.Host, n int) []config.Host` — return top `n` hosts by connection count, preserving order for ties
 
 #### `internal/state/state_test.go`
-- [ ] Test `Load` on non-existent file returns `FirstRun: true`
-- [ ] Test `Load` → `Save` → `Load` round-trip preserves data
-- [ ] Test `RecordConnection` increments count correctly
-- [ ] Test `FrequentHosts` returns correct top-N ordering
-- [ ] Test `FrequentHosts` with fewer hosts than `n` (returns all)
-- [ ] Test `Save` with missing parent directory (should create it)
+- [x] Test `Load` on non-existent file returns `FirstRun: true`
+- [x] Test `Load` → `Save` → `Load` round-trip preserves data
+- [x] Test `RecordConnection` increments count correctly
+- [x] Test `FrequentHosts` returns correct top-N ordering
+- [x] Test `FrequentHosts` with fewer hosts than `n` (returns all)
+- [x] Test `Save` with missing parent directory (should create it)
 
 ---
 
