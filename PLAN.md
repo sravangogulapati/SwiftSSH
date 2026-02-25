@@ -199,7 +199,7 @@ swiftssh/
 ### Tasks
 
 #### `internal/tui/model.go`
-- [ ] Define UI modes as `iota`:
+- [x] Define UI modes as `iota`:
   ```go
   type mode int
   const (
@@ -208,7 +208,7 @@ swiftssh/
       modeIdentityPicker
   )
   ```
-- [ ] Define `Model` struct:
+- [x] Define `Model` struct:
   ```go
   type Model struct {
       allHosts     []config.Host  // Full unfiltered host list (frequent first, then rest)
@@ -224,46 +224,46 @@ swiftssh/
       // Health check fields (Phase 6)
   }
   ```
-- [ ] Implement `New(hosts []config.Host, st *state.State, statePath string) Model`:
+- [x] Implement `New(hosts []config.Host, st *state.State, statePath string) Model`:
   - Sort: frequent hosts first (from `state.FrequentHosts`), then remaining hosts alphabetically
   - Initialize `filtered` as a copy of `allHosts`
-- [ ] Implement `Init() tea.Cmd` — no-op for now
-- [ ] Implement `Update(msg tea.Msg) (tea.Model, tea.Cmd)` — handle `tea.WindowSizeMsg` to set `viewHeight`
-- [ ] Implement `View() string` — render the list (delegates to `views.go`)
+- [x] Implement `Init() tea.Cmd` — no-op for now
+- [x] Implement `Update(msg tea.Msg) (tea.Model, tea.Cmd)` — handle `tea.WindowSizeMsg` to set `viewHeight`
+- [x] Implement `View() string` — render the list (delegates to `views.go`)
 
 #### `internal/tui/keybindings.go`
-- [ ] Handle `tea.KeyMsg` in `Update`:
-  - `q`, `ctrl+c` → `tea.Quit`
-  - `j`, `down` → move cursor down (with wrap-around at bottom)
-  - `k`, `up` → move cursor up (with wrap-around at top)
-  - Viewport scrolling: when cursor moves past bottom of viewport, advance viewport; when cursor moves above top, retreat viewport
-  - `Enter` → placeholder for Phase 5 (do nothing for now)
-  - `/` → placeholder for Phase 4b search (do nothing for now)
-  - `i` → placeholder for Phase 5 identity picker (do nothing for now)
-  - `p` → placeholder for Phase 6 health checks (do nothing for now)
+- [x] Handle `tea.KeyMsg` in `Update`:
+  - [x] `q`, `ctrl+c` → `tea.Quit`
+  - [x] `j`, `down` → move cursor down (with wrap-around at bottom)
+  - [x] `k`, `up` → move cursor up (with wrap-around at top)
+  - [x] Viewport scrolling: when cursor moves past bottom of viewport, advance viewport; when cursor moves above top, retreat viewport
+  - [x] `Enter` → placeholder for Phase 5 (do nothing for now)
+  - [x] `/` → placeholder for Phase 4b search (do nothing for now)
+  - [x] `i` → placeholder for Phase 5 identity picker (do nothing for now)
+  - [x] `p` → placeholder for Phase 6 health checks (do nothing for now)
 
 #### `internal/tui/views.go`
-- [ ] Implement `renderList(m Model) string`:
-  - Show only `viewHeight` items starting from `m.viewport`
-  - Selected item: render with `>` prefix and bold/reverse style using `lipgloss`
-  - Each row format: `  [alias]  [hostname]  [user@]  [groups...]`
-  - Group tags rendered as `[tag]` in a muted color
-  - Status bar at the bottom: `[N hosts] | q: quit | /: search | Enter: connect`
-- [ ] Implement `renderHeader(m Model) string`:
-  - Show `SwiftSSH` title
-  - If `m.mode == modeSearch`, show the current search query as a prompt
+- [x] Implement `renderList(m Model) string`:
+  - [x] Show only `viewHeight` items starting from `m.viewport`
+  - [x] Selected item: render with `>` prefix and bold/reverse style using `lipgloss`
+  - [x] Each row format: `  [alias]  [hostname]  [user@]  [groups...]`
+  - [x] Group tags rendered as `[tag]` in a muted color
+  - [x] Status bar at the bottom: `[N hosts] | q: quit | /: search | Enter: connect`
+- [x] Implement `renderHeader(m Model) string`:
+  - [x] Show `SwiftSSH` title
+  - [x] If `m.mode == modeSearch`, show the current search query as a prompt
 
 #### `internal/tui/model_test.go`
-- [ ] Test cursor wraps correctly at list boundaries
-- [ ] Test viewport advances when cursor moves below visible area
-- [ ] Test viewport retreats when cursor moves above visible area
-- [ ] Test `New` sorts frequent hosts to top
+- [x] Test cursor wraps correctly at list boundaries
+- [x] Test viewport advances when cursor moves below visible area
+- [x] Test viewport retreats when cursor moves above visible area
+- [x] Test `New` sorts frequent hosts to top
 
 #### `cmd/swiftssh/main.go` (update)
-- [ ] Load hosts from `platform.SSHConfigPath()` using `config.Parse`
-- [ ] Load state from `platform.StateFilePath()` using `state.Load`
-- [ ] Launch TUI with `tea.NewProgram(tui.New(hosts, st, statePath)).Run()`
-- [ ] Print error and exit 1 if config cannot be parsed
+- [x] Load hosts from `platform.SSHConfigPath()` using `config.Parse`
+- [x] Load state from `platform.StateFilePath()` using `state.Load`
+- [x] Launch TUI with `tea.NewProgram(tui.New(hosts, st, statePath)).Run()`
+- [x] Print error and exit 1 if config cannot be parsed
 
 ---
 
