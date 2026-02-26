@@ -49,6 +49,10 @@ func AppendHost(configPath, backupPath string, h Host) error {
 		block += fmt.Sprintf("    Port %s\n", h.Port)
 	}
 
+	if h.IdentityFile != "" {
+		block += fmt.Sprintf("    IdentityFile %s\n", h.IdentityFile)
+	}
+
 	_, err = io.WriteString(f, block)
 	if err != nil {
 		return fmt.Errorf("failed to write host block: %w", err)

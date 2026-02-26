@@ -58,6 +58,11 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 
 		// Check if this is a magic comment line (update prevLine even if not a directive)
 		if strings.HasPrefix(trimmed, "#") {
+			// If we're inside a host block, assign groups directly so that a
+			// trailing blank line doesn't wipe prevLine before the next Host.
+			if current != nil && strings.Contains(trimmed, "@group") {
+				current.Groups = parseMagicComment(trimmed)
+			}
 			prevLine = line
 			continue
 		}
@@ -104,6 +109,11 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 		case "port":
 			if current != nil {
 				current.Port = value
+			}
+
+		case "identityfile":
+			if current != nil {
+				current.IdentityFile = value
 			}
 
 		case "include":
