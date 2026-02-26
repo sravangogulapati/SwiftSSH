@@ -276,29 +276,29 @@ swiftssh/
 ### Tasks
 
 #### `internal/ssh/keys.go`
-- [ ] Implement `ScanPublicKeys(sshDir string) ([]string, error)`:
+- [x] Implement `ScanPublicKeys(sshDir string) ([]string, error)`:
   - Glob `~/.ssh/*.pub` and return a list of matching key paths (strip `.pub` for the actual private key path)
   - Filter out entries where the corresponding private key file does not exist
-- [ ] Implement `KeyLabel(pubKeyPath string) string` — strip directory prefix and `.pub` suffix for display
+- [x] Implement `KeyLabel(pubKeyPath string) string` — strip directory prefix and `.pub` suffix for display
 
 #### `internal/ssh/keys_test.go`
-- [ ] Test `ScanPublicKeys` against a temp directory with mock `.pub` files
-- [ ] Test it excludes `.pub` files with no corresponding private key
-- [ ] Test `KeyLabel` strips path and extension correctly
+- [x] Test `ScanPublicKeys` against a temp directory with mock `.pub` files
+- [x] Test it excludes `.pub` files with no corresponding private key
+- [x] Test `KeyLabel` strips path and extension correctly
 
 #### `internal/ssh/executor.go`
-- [ ] Implement `BuildArgs(host config.Host, identity string) []string`:
+- [x] Implement `BuildArgs(host config.Host, identity string) []string`:
   - Returns SSH arguments as a slice (never concatenated into a string)
   - Includes `-i <identity>` if identity is non-empty
   - Includes `-p <port>` if port is non-default
   - Includes `-l <user>` if user is set
   - Final argument is the host alias (or `user@hostname` format)
-- [ ] Implement `ConnectCmd(host config.Host, identity string) *exec.Cmd` — wraps `exec.Command("ssh", BuildArgs(...)...)`
-- [ ] Expose `ExecProcess(host config.Host, identity string) tea.ExecCommand` — returns a `tea.ExecProcess` compatible command
+- [x] Implement `ConnectCmd(host config.Host, identity string) *exec.Cmd` — wraps `exec.Command("ssh", BuildArgs(...)...)`
+- [x] Expose `ExecProcess(host config.Host, identity string) tea.ExecCommand` — returns a `tea.ExecProcess` compatible command (via `tea.ExecProcess` in keybindings)
 
 #### `internal/config/writer.go`
-- [ ] Implement `IsKnownHost(hosts []config.Host, hostname string) bool` — returns true if any host has matching Hostname
-- [ ] Implement `AppendHost(configPath, backupPath string, h config.Host) error`:
+- [x] Implement `IsKnownHost(hosts []config.Host, hostname string) bool` — returns true if any host has matching Hostname
+- [x] Implement `AppendHost(configPath, backupPath string, h config.Host) error`:
   1. Copy `configPath` to `backupPath` (overwrite backup)
   2. Append a newline + formatted Host block to `configPath`:
      ```
@@ -309,39 +309,84 @@ swiftssh/
   3. Return error if file operations fail
 
 #### TUI — Identity Picker (update `internal/tui/`)
-- [ ] Add `availableKeys []string` and `keyPickerCursor int` to `Model`
-- [ ] Add `selectedIdentity string` to `Model` (session-only, never persisted)
-- [ ] On `i` key press in `modeNormal`:
+- [x] Add `availableKeys []string` and `keyPickerCursor int` to `Model`
+- [x] Add `selectedIdentity string` to `Model` (session-only, never persisted)
+- [x] On `i` key press in `modeNormal`:
   - Call `ssh.ScanPublicKeys(platform.SSHKeyDir())`
   - If no keys found: show status message "No SSH keys found in ~/.ssh"
   - If keys found: set `mode = modeIdentityPicker`, populate `availableKeys`
-- [ ] In `modeIdentityPicker`:
+- [x] In `modeIdentityPicker`:
   - `j`/`k` navigate the key list
   - `Enter` sets `selectedIdentity` and returns to `modeNormal`
   - `Esc` returns to `modeNormal` without changing identity
-- [ ] In `views.go`: implement `renderIdentityPicker(m Model) string` — renders as an overlay list
+- [x] In `views.go`: implement `renderIdentityPicker(m Model) string` — renders as an overlay list
 
 #### TUI — Connect on Enter (update `internal/tui/keybindings.go`)
-- [ ] On `Enter` in `modeNormal`:
+- [x] On `Enter` in `modeNormal`:
   1. Get the selected `config.Host` from `m.filtered[m.cursor]`
   2. Call `state.RecordConnection` and save state
   3. Check `config.IsKnownHost` — if not known, call `config.AppendHost` to auto-entry
-  4. Return `tea.ExecProcess(ssh.ExecProcess(host, m.selectedIdentity), connectCallback)`
+  4. Return `tea.ExecProcess(ssh.ConnectCmd(host, m.selectedIdentity), connectCallback)`
   5. On callback return, clear `selectedIdentity`
 
 #### Tests
-- [ ] Test `ssh.BuildArgs` with identity set vs. empty
-- [ ] Test `ssh.BuildArgs` with non-default port
-- [ ] Test `config.AppendHost` writes correct block and creates backup
-- [ ] Test `config.IsKnownHost` returns correct results
-- [ ] Test identity picker mode transitions in TUI model
+- [x] Test `ssh.BuildArgs` with identity set vs. empty
+- [x] Test `ssh.BuildArgs` with non-default port
+- [x] Test `config.AppendHost` writes correct block and creates backup
+- [x] Test `config.IsKnownHost` returns correct results
+- [x] Test identity picker mode transitions in TUI model
 
 ---
 
-## Phase 6 — Fuzzy Search
+## Phase 6 — User Feedback & Iteration
+
+**Goal:** Gather user feedback on the MVP (core features working: list, search, SSH execution, identity picker). Identify UX issues, missing features, or design improvements. Implement feedback and potentially introduce new development phases as needed.
+**Depends on:** Phase 5
+**Verify:** Feedback documented; new issues/features tracked; roadmap updated with any new phases
+
+### Tasks
+
+#### Feedback Collection
+- [ ] Document current MVP state (what works, what doesn't)
+- [ ] Share with initial testers / users
+- [ ] Collect feedback on:
+  - **UI/UX**: Layout, colors, key bindings, terminology, clarity
+  - **Feature Gaps**: Missing functionality compared to mental model
+  - **Performance**: Any lag or slowness in list rendering, search, or SSH handoff
+  - **Bugs**: Crashes, incorrect parsing, state persistence issues
+  - **Quality of Life**: Desired shortcuts, automation, or convenience features
+
+#### Feedback Processing & Triage
+- [ ] Document all feedback in a centralized list (e.g., `FEEDBACK.md` or GitHub issues)
+- [ ] Categorize feedback:
+  - **Critical Bug** (blocks usage)
+  - **High Priority** (core UX issue or frequently requested)
+  - **Medium Priority** (nice-to-have improvement)
+  - **Low Priority** (edge case or niche request)
+  - **Out of Scope** (conflicts with design constraints)
+- [ ] Group similar feedback themes (e.g., "all three testers mentioned keybinding confusion")
+- [ ] Assign owner (you or Claude) for each item
+
+#### Implementation Planning
+- [ ] For each **Critical** or **High Priority** item:
+  - Decide: **Quick Fix** (apply immediately) vs. **New Phase** (introduces new development tasks)
+  - If **New Phase**: Insert into PLAN.md with clear dependencies; keep phases independently buildable/testable
+  - If **Quick Fix**: Scope the work; estimate if it fits before next phase
+- [ ] Update this phase's checklist as work progresses
+- [ ] Do NOT skip feedback that challenges assumptions—revisit constraints if needed
+
+#### Documentation Updates
+- [ ] Update `CLAUDE.md` if UX patterns or architecture decisions change
+- [ ] Update `PRD.md` if functional requirements shift based on feedback
+- [ ] Update `README.md` with any new keybindings or features added during iteration
+- [ ] Add new phases to PLAN.md summary table if applicable
+
+---
+
+## Phase 7 — Fuzzy Search
 
 **Goal:** `/` activates search mode; typing filters the host list in real-time using fuzzy matching against alias, hostname, and groups.
-**Depends on:** Phase 4
+**Depends on:** Phase 4, Phase 6 (feedback iteration if search changes required)
 **Verify:** Pressing `/` shows search prompt; typing filters the list; `Esc`/`Enter` exits search
 
 ### Tasks
@@ -377,10 +422,10 @@ swiftssh/
 
 ---
 
-## Phase 7 — Health Checks
+## Phase 8 — Health Checks
 
 **Goal:** `p` toggle fires async TCP dials to port 22 for viewport-visible hosts only. Results appear as status indicators without blocking the TUI.
-**Depends on:** Phase 4
+**Depends on:** Phase 4, Phase 6 (feedback iteration if health check UX changes required)
 **Verify:** Pressing `p` shows TCP status icons next to hosts in the viewport; off-screen hosts show nothing
 
 ### Tasks
@@ -421,10 +466,10 @@ swiftssh/
 
 ---
 
-## Phase 8 — First-Run UX & CLI Polish
+## Phase 9 — First-Run UX & CLI Polish
 
 **Goal:** Detect first run and print alias suggestion. Wire all CLI flags. Ensure the app feels complete.
-**Depends on:** Phases 3, 5
+**Depends on:** Phases 3, 5, Phase 6 (feedback may inform alias/flag improvements)
 **Verify:** First `./swiftssh` run prints alias suggestion; subsequent runs go straight to TUI; `--help` and `--version` work
 
 ### Tasks
@@ -463,10 +508,10 @@ swiftssh/
 
 ---
 
-## Phase 9 — Testing & QA
+## Phase 10 — Testing & QA
 
-**Goal:** Bring test coverage to a high standard across all packages. Fix edge cases.
-**Depends on:** All prior phases
+**Goal:** Bring test coverage to a high standard across all packages. Fix edge cases discovered during feedback iteration.
+**Depends on:** All prior phases (especially Phase 6 feedback findings)
 **Verify:** `make test-cover` shows >80% coverage across all packages; `go vet ./...` is clean
 
 ### Tasks
@@ -493,10 +538,10 @@ swiftssh/
 
 ---
 
-## Phase 10 — Release Preparation
+## Phase 11 — Release Preparation
 
 **Goal:** README, GitHub Actions CI, cross-platform release builds, and GitHub release artifacts.
-**Depends on:** Phase 9
+**Depends on:** Phase 10
 **Verify:** CI passes on push; `goreleaser` (or manual build matrix) produces binaries for all targets
 
 ### Tasks
@@ -541,8 +586,9 @@ swiftssh/
 | 3 | State Manager | Frequency tracking JSON | `go test ./internal/state/` |
 | 4 | TUI Foundation | Scrollable host list, vim nav | Run the app, navigate with j/k |
 | 5 | SSH Exec + Identity | Real SSH connections, key picker | Connect to a real host |
-| 6 | Fuzzy Search | Live filtered search | Press `/`, type to filter |
-| 7 | Health Checks | Async TCP ping per visible host | Press `p`, see status icons |
-| 8 | First-Run + CLI | Alias suggestion, all flags | `--version`, `--help`, first run |
-| 9 | Testing & QA | >80% coverage, clean vet | `make test-cover` |
-| 10 | Release | CI pipeline + GitHub Release | Tag v0.1.0 |
+| 6 | User Feedback & Iteration | Feedback documented, UX refined | Manual testing + feature triage |
+| 7 | Fuzzy Search | Live filtered search | Press `/`, type to filter |
+| 8 | Health Checks | Async TCP ping per visible host | Press `p`, see status icons |
+| 9 | First-Run + CLI | Alias suggestion, all flags | `--version`, `--help`, first run |
+| 10 | Testing & QA | >80% coverage, clean vet | `make test-cover` |
+| 11 | Release | CI pipeline + GitHub Release | Tag v0.1.0 |
