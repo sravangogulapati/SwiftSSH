@@ -347,39 +347,20 @@ swiftssh/
 ### Tasks
 
 #### Feedback Collection
-- [ ] Document current MVP state (what works, what doesn't)
-- [ ] Share with initial testers / users
-- [ ] Collect feedback on:
-  - **UI/UX**: Layout, colors, key bindings, terminology, clarity
-  - **Feature Gaps**: Missing functionality compared to mental model
-  - **Performance**: Any lag or slowness in list rendering, search, or SSH handoff
-  - **Bugs**: Crashes, incorrect parsing, state persistence issues
-  - **Quality of Life**: Desired shortcuts, automation, or convenience features
+- [x] Document current MVP state (what works, what doesn't) — see `FEEDBACK.md`
+- [x] Collect feedback on UI/UX, feature gaps, quality of life
 
 #### Feedback Processing & Triage
-- [ ] Document all feedback in a centralized list (e.g., `FEEDBACK.md` or GitHub issues)
-- [ ] Categorize feedback:
-  - **Critical Bug** (blocks usage)
-  - **High Priority** (core UX issue or frequently requested)
-  - **Medium Priority** (nice-to-have improvement)
-  - **Low Priority** (edge case or niche request)
-  - **Out of Scope** (conflicts with design constraints)
-- [ ] Group similar feedback themes (e.g., "all three testers mentioned keybinding confusion")
-- [ ] Assign owner (you or Claude) for each item
+- [x] Documented all feedback in `FEEDBACK.md`
+- [x] Categorized and triaged all items (3 High Priority quick fixes)
 
 #### Implementation Planning
-- [ ] For each **Critical** or **High Priority** item:
-  - Decide: **Quick Fix** (apply immediately) vs. **New Phase** (introduces new development tasks)
-  - If **New Phase**: Insert into PLAN.md with clear dependencies; keep phases independently buildable/testable
-  - If **Quick Fix**: Scope the work; estimate if it fits before next phase
-- [ ] Update this phase's checklist as work progresses
-- [ ] Do NOT skip feedback that challenges assumptions—revisit constraints if needed
+- [x] F1 (High) — Column-aligned table layout: Quick Fix applied
+- [x] F2 (High) — `i: identity` missing from status bar: Quick Fix applied
+- [x] F3 (High) — CLI SSH passthrough (`swiftssh user@host`): Quick Fix applied
 
 #### Documentation Updates
-- [ ] Update `CLAUDE.md` if UX patterns or architecture decisions change
-- [ ] Update `PRD.md` if functional requirements shift based on feedback
-- [ ] Update `README.md` with any new keybindings or features added during iteration
-- [ ] Add new phases to PLAN.md summary table if applicable
+- [x] Updated `PLAN.md` checklist
 
 ---
 
@@ -392,8 +373,8 @@ swiftssh/
 ### Tasks
 
 #### `internal/tui/model.go` (update)
-- [ ] Add `searchQuery string` to `Model`
-- [ ] Implement `applySearch(m *Model)`:
+- [x] Add `searchQuery string` to `Model`
+- [x] Implement `applySearch(m *Model)`:
   - If `searchQuery == ""`, set `filtered = allHosts` and return
   - Build a single searchable string per host: `alias + " " + hostname + " " + strings.Join(groups, " ")`
   - Use `github.com/sahilm/fuzzy` to rank matches against the query
@@ -401,8 +382,8 @@ swiftssh/
   - Reset `m.cursor = 0` and `m.viewport = 0` after filtering
 
 #### `internal/tui/keybindings.go` (update)
-- [ ] On `/` in `modeNormal`: set `mode = modeSearch`, clear `searchQuery`
-- [ ] In `modeSearch`, on `tea.KeyMsg`:
+- [x] On `/` in `modeNormal`: set `mode = modeSearch`, clear `searchQuery`
+- [x] In `modeSearch`, on `tea.KeyMsg`:
   - Printable chars: append to `searchQuery`, call `applySearch`
   - `Backspace`: trim last rune from `searchQuery`, call `applySearch`
   - `Esc`: clear `searchQuery`, `applySearch`, set `mode = modeNormal`
@@ -410,15 +391,15 @@ swiftssh/
   - `ctrl+c`: quit
 
 #### `internal/tui/views.go` (update)
-- [ ] In `renderHeader`: show `/ <query>█` search prompt when in `modeSearch`
+- [x] In `renderHeader`: show `/ <query>█` search prompt when in `modeSearch`
 - [ ] Highlight matched characters in rendered host rows (optional, nice-to-have for MVP)
 
 #### Tests
-- [ ] Test `applySearch` with empty query returns full host list
-- [ ] Test `applySearch` filters by alias
-- [ ] Test `applySearch` filters by hostname
-- [ ] Test `applySearch` filters by group tag
-- [ ] Test search resets cursor and viewport to 0
+- [x] Test `applySearch` with empty query returns full host list
+- [x] Test `applySearch` filters by alias
+- [x] Test `applySearch` filters by hostname
+- [x] Test `applySearch` filters by group tag
+- [x] Test search resets cursor and viewport to 0
 
 ---
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sahilm/fuzzy"
 	"github.com/srava/swiftssh/internal/config"
 	"github.com/srava/swiftssh/internal/state"
 )
@@ -101,7 +102,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		m.viewHeight = msg.Height - 3
+		m.viewHeight = msg.Height - 4 // -1 title, -1 column header, -1 status bar, -1 margin
 		if m.viewHeight < 1 {
 			m.viewHeight = 1
 		}
@@ -115,6 +116,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+// applySearch filters m.allHosts using m.searchQuery and updates m.filtered.
+// Resets cursor and viewport to 0.
+func applySearch(m *Model) {
+	if m.searchQuery == "" {
+		m.filtered = make([]config.Host, len(m.allHosts))
+		copy(m.filtered, m.allHosts)
+		m.cursor = 0
+		m.viewport = 0
+		return
+	}
+
+	// Build searchable strings: "alias hostname group1 group2 ..."
+	targets := make([]string, len(m.allHosts))
+	for i, h := range m.allHosts {
+		targets[i] = h.Alias + " " + h.Hostname + " " + strings.Join(h.Groups, " ")
+	}
+
+	matches := fuzzy.Find(m.searchQuery, targets)
+	m.filtered = make([]config.Host, len(matches))
+	for i, match := range matches {
+		m.filtered[i] = m.allHosts[match.Index]
+	}
+
+	m.cursor = 0
+	m.viewport = 0
 }
 
 // View renders the current TUI display.

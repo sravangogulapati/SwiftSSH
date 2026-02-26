@@ -3,3 +3,4 @@ swiftssh.exe
 coverage.out
 .DS_Store
 .claude/
+setup_test_data.sh
