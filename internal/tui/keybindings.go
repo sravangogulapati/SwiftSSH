@@ -1,6 +1,12 @@
 package tui
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/srava/swiftssh/internal/config"
+	"github.com/srava/swiftssh/internal/platform"
+	"github.com/srava/swiftssh/internal/ssh"
+	"github.com/srava/swiftssh/internal/state"
+)
 
 // handleKey processes key events and updates the model accordingly.
 func handleKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -11,7 +17,7 @@ func handleKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case modeSearch:
 		return m, nil // Placeholder for Phase 5
 	case modeIdentityPicker:
-		return m, nil // Placeholder for Phase 6
+		return handleIdentityPickerMode(m, msg)
 	}
 	return m, nil
 }
@@ -49,15 +55,41 @@ func handleNormalMode(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
-		// Placeholder for Phase 5 (SSH connection)
-		return m, nil
+		// SSH connection
+		if len(m.filtered) == 0 {
+			return m, nil
+		}
+		host := m.filtered[m.cursor]
+
+		// Record connection in state
+		state.RecordConnection(m.state, host.Alias)
+		_ = state.Save(m.statePath, m.state)
+
+		// Check if host is known; if not, append it to config
+		if !config.IsKnownHost(m.allHosts, host.Hostname) {
+			_ = config.AppendHost(platform.SSHConfigPath(), platform.SSHConfigBackupPath(), host)
+		}
+
+		// Execute SSH connection
+		cmd := ssh.ConnectCmd(host, m.selectedIdentity)
+		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+			return sshExitMsg{err: err}
+		})
 
 	case "/":
 		// Placeholder for Phase 5 (search mode)
 		return m, nil
 
 	case "i":
-		// Placeholder for Phase 6 (identity picker)
+		// Identity picker
+		keys, _ := ssh.ScanPublicKeys(platform.SSHKeyDir())
+		if len(keys) == 0 {
+			m.statusMsg = "No SSH keys found in ~/.ssh"
+			return m, nil
+		}
+		m.availableKeys = keys
+		m.keyPickerCursor = 0
+		m.mode = modeIdentityPicker
 		return m, nil
 
 	case "p":
@@ -81,4 +113,36 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// handleIdentityPickerMode processes keys in identity picker mode.
+func handleIdentityPickerMode(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "j", "down":
+		if len(m.availableKeys) > 0 {
+			m.keyPickerCursor = (m.keyPickerCursor + 1) % len(m.availableKeys)
+		}
+		return m, nil
+
+	case "k", "up":
+		if len(m.availableKeys) > 0 {
+			m.keyPickerCursor = (m.keyPickerCursor - 1 + len(m.availableKeys)) % len(m.availableKeys)
+		}
+		return m, nil
+
+	case "enter":
+		if len(m.availableKeys) > 0 {
+			m.selectedIdentity = m.availableKeys[m.keyPickerCursor]
+		}
+		m.mode = modeNormal
+		return m, nil
+
+	case "esc":
+		m.mode = modeNormal
+		return m, nil
+
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
 }
