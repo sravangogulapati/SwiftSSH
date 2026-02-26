@@ -16,8 +16,6 @@ func handleKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return handleNormalMode(m, msg)
 	case modeSearch:
 		return handleSearchMode(m, msg)
-	case modeIdentityPicker:
-		return handleIdentityPickerMode(m, msg)
 	}
 	return m, nil
 }
@@ -69,9 +67,9 @@ func connectToSelected(m Model) (Model, tea.Cmd) {
 	}
 
 	// Execute SSH connection
-	cmd := ssh.ConnectCmd(host, m.selectedIdentity)
+	cmd := ssh.ConnectCmd(host, "")
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return sshExitMsg{err: err}
+		return nil
 	})
 }
 
@@ -90,17 +88,6 @@ func handleNormalMode(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "enter":
 		return connectToSelected(m)
 
-	case "ctrl+i":
-		// Identity picker
-		keys, _ := ssh.ScanPublicKeys(platform.SSHKeyDir())
-		if len(keys) == 0 {
-			m.statusMsg = "No SSH keys found in ~/.ssh"
-			return m, nil
-		}
-		m.availableKeys = keys
-		m.keyPickerCursor = 0
-		m.mode = modeIdentityPicker
-		return m, nil
 	}
 
 	// Any printable rune enters search mode immediately with that character.
@@ -177,34 +164,3 @@ func handleSearchMode(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 }
 
-// handleIdentityPickerMode processes keys in identity picker mode.
-func handleIdentityPickerMode(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.String() {
-	case "j", "down":
-		if len(m.availableKeys) > 0 {
-			m.keyPickerCursor = (m.keyPickerCursor + 1) % len(m.availableKeys)
-		}
-		return m, nil
-
-	case "k", "up":
-		if len(m.availableKeys) > 0 {
-			m.keyPickerCursor = (m.keyPickerCursor - 1 + len(m.availableKeys)) % len(m.availableKeys)
-		}
-		return m, nil
-
-	case "enter":
-		if len(m.availableKeys) > 0 {
-			m.selectedIdentity = m.availableKeys[m.keyPickerCursor]
-		}
-		m.mode = modeNormal
-		return m, nil
-
-	case "esc":
-		m.mode = modeNormal
-		return m, nil
-
-	case "ctrl+c":
-		return m, tea.Quit
-	}
-	return m, nil
-}

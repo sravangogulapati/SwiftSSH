@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/srava/swiftssh/internal/config"
-	"github.com/srava/swiftssh/internal/ssh"
 )
 
 var (
@@ -150,28 +149,8 @@ func renderRow(m Model, i, aliasW, hostW, userW int) string {
 
 // renderStatusBar returns the status bar display.
 func renderStatusBar(m Model) string {
-	if m.statusMsg != "" {
-		return statusStyle.Render(m.statusMsg)
-	}
 	return statusStyle.Render(fmt.Sprintf(
-		"%d hosts | Enter: connect | ctrl+i: identity | esc: quit",
+		"%d hosts | Enter: connect | esc: quit",
 		len(m.filtered),
 	))
-}
-
-// renderIdentityPicker renders the identity selection overlay.
-func renderIdentityPicker(m Model) string {
-	var lines []string
-	lines = append(lines, dimStyle.Render("Select identity (Esc to cancel):"))
-
-	for i, keyPath := range m.availableKeys {
-		label := ssh.KeyLabel(keyPath)
-		if i == m.keyPickerCursor {
-			lines = append(lines, selectedStyle.Render("> "+label))
-		} else {
-			lines = append(lines, "  "+label)
-		}
-	}
-
-	return strings.Join(lines, "\n")
 }

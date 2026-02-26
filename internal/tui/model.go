@@ -15,30 +15,20 @@ type mode int
 const (
 	modeNormal mode = iota
 	modeSearch
-	modeIdentityPicker
 )
-
-// sshExitMsg is sent when an SSH session exits.
-type sshExitMsg struct {
-	err error
-}
 
 // Model represents the TUI state for the host list.
 type Model struct {
-	allHosts         []config.Host
-	filtered         []config.Host
-	cursor           int
-	viewport         int
-	viewHeight       int
-	width            int
-	mode             mode
-	searchQuery      string
-	state            *state.State
-	statePath        string
-	availableKeys    []string
-	keyPickerCursor  int
-	selectedIdentity string
-	statusMsg        string
+	allHosts    []config.Host
+	filtered    []config.Host
+	cursor      int
+	viewport    int
+	viewHeight  int
+	width       int
+	mode        mode
+	searchQuery string
+	state       *state.State
+	statePath   string
 }
 
 // New creates a new Model with hosts sorted by frequency and then alphabetically.
@@ -75,20 +65,16 @@ func New(hosts []config.Host, st *state.State, statePath string) Model {
 	copy(filtered, allHosts)
 
 	return Model{
-		allHosts:         allHosts,
-		filtered:         filtered,
-		cursor:           0,
-		viewport:         0,
-		viewHeight:       20,
-		width:            80,
-		mode:             modeNormal,
-		searchQuery:      "",
-		state:            st,
-		statePath:        statePath,
-		availableKeys:    []string{},
-		keyPickerCursor:  0,
-		selectedIdentity: "",
-		statusMsg:        "",
+		allHosts:    allHosts,
+		filtered:    filtered,
+		cursor:      0,
+		viewport:    0,
+		viewHeight:  20,
+		width:       80,
+		mode:        modeNormal,
+		searchQuery: "",
+		state:       st,
+		statePath:   statePath,
 	}
 }
 
@@ -110,10 +96,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		newModel, cmd := handleKey(m, msg)
 		return newModel, cmd
-	case sshExitMsg:
-		m.selectedIdentity = ""
-		m.statusMsg = ""
-		return m, nil
 	}
 	return m, nil
 }
@@ -149,9 +131,6 @@ func applySearch(m *Model) {
 func (m Model) View() string {
 	header := renderHeader(m)
 	list := renderList(m)
-	if m.mode == modeIdentityPicker {
-		list = renderIdentityPicker(m)
-	}
 	statusBar := renderStatusBar(m)
 	return header + "\n" + list + "\n" + statusBar
 }

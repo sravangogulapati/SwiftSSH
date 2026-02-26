@@ -156,79 +156,6 @@ func TestNewSortsFrequentHostsFirst(t *testing.T) {
 	}
 }
 
-// TestIdentityPickerNavigation tests cursor movement in identity picker mode.
-func TestIdentityPickerNavigation(t *testing.T) {
-	t.Helper()
-
-	hosts := makeHosts("dev", "prod")
-	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
-
-	// Manually set up identity picker mode
-	m.mode = modeIdentityPicker
-	m.availableKeys = []string{"/home/user/.ssh/id_a", "/home/user/.ssh/id_b", "/home/user/.ssh/id_c"}
-	m.keyPickerCursor = 0
-
-	// Press j twice
-	m = pressKey(m, "j")
-	if m.keyPickerCursor != 1 {
-		t.Errorf("After first j: expected cursor=1, got %d", m.keyPickerCursor)
-	}
-
-	m = pressKey(m, "j")
-	if m.keyPickerCursor != 2 {
-		t.Errorf("After second j: expected cursor=2, got %d", m.keyPickerCursor)
-	}
-}
-
-// TestIdentityPickerSelectsIdentity tests selecting an identity.
-func TestIdentityPickerSelectsIdentity(t *testing.T) {
-	t.Helper()
-
-	hosts := makeHosts("dev")
-	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
-
-	// Set up identity picker mode
-	m.mode = modeIdentityPicker
-	m.availableKeys = []string{"/home/user/.ssh/id_a", "/home/user/.ssh/id_b"}
-	m.keyPickerCursor = 1
-
-	// Press enter (KeyEnter type)
-	m = pressSpecialKey(m, tea.KeyEnter)
-
-	if m.selectedIdentity != "/home/user/.ssh/id_b" {
-		t.Errorf("Expected selectedIdentity=/home/user/.ssh/id_b, got %q", m.selectedIdentity)
-	}
-	if m.mode != modeNormal {
-		t.Errorf("Expected mode=modeNormal, got %d", m.mode)
-	}
-}
-
-// TestIdentityPickerEscCancels tests escaping the identity picker.
-func TestIdentityPickerEscCancels(t *testing.T) {
-	t.Helper()
-
-	hosts := makeHosts("dev")
-	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
-
-	// Set up identity picker mode with a previously selected identity
-	m.mode = modeIdentityPicker
-	m.availableKeys = []string{"/home/user/.ssh/id_a"}
-	m.selectedIdentity = "prev_identity"
-
-	// Press esc
-	m = pressSpecialKey(m, tea.KeyEsc)
-
-	if m.mode != modeNormal {
-		t.Errorf("Expected mode=modeNormal, got %d", m.mode)
-	}
-	if m.selectedIdentity != "prev_identity" {
-		t.Errorf("Expected selectedIdentity=prev_identity (unchanged), got %q", m.selectedIdentity)
-	}
-}
-
 // TestApplySearch_EmptyQuery tests that an empty query returns all hosts.
 func TestApplySearch_EmptyQuery(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
@@ -401,27 +328,6 @@ func TestSearchMode_CtrlWClearsQuery(t *testing.T) {
 	}
 	if m.searchQuery != "" {
 		t.Errorf("Expected searchQuery='', got %q", m.searchQuery)
-	}
-}
-
-// TestIdentityPickerWrap tests cursor wrapping in identity picker mode.
-func TestIdentityPickerWrap(t *testing.T) {
-	t.Helper()
-
-	hosts := makeHosts("dev")
-	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
-
-	// Set up identity picker mode
-	m.mode = modeIdentityPicker
-	m.availableKeys = []string{"/home/user/.ssh/id_a", "/home/user/.ssh/id_b", "/home/user/.ssh/id_c"}
-	m.keyPickerCursor = 2 // Last item
-
-	// Press j (should wrap to 0)
-	m = pressKey(m, "j")
-
-	if m.keyPickerCursor != 0 {
-		t.Errorf("Expected cursor=0 (wrap), got %d", m.keyPickerCursor)
 	}
 }
 
