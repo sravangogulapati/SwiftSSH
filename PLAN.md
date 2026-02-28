@@ -12,7 +12,7 @@
 
 ```
 swiftssh/
-├── cmd/swiftssh/
+├── cmd/sssh/
 │   └── main.go              # Entry point — wires all packages together
 ├── internal/
 │   ├── platform/            # OS-aware file paths
@@ -53,7 +53,7 @@ swiftssh/
 
 **Goal:** Compilable Go module with a working Makefile, `.gitignore`, and a stub `main.go` that prints a version string. Establishes the full directory skeleton and dependency manifest.
 **Depends on:** Nothing
-**Verify:** `make build` succeeds and `./swiftssh --version` prints `swiftssh v0.1.0`
+**Verify:** `make build` succeeds and `./sssh --version` prints `sssh v0.1.0`
 
 ### Tasks
 
@@ -63,19 +63,19 @@ swiftssh/
   - `github.com/charmbracelet/lipgloss` v0.9.1 (for styled text rendering)
   - `github.com/sahilm/fuzzy` v0.1.1 (for fuzzy search)
 - [x] Run `go mod tidy` to populate `go.sum` (40 lines)
-- [x] Create `.gitignore` — exclude `swiftssh` binary, `swiftssh.exe`, `coverage.out`, `.DS_Store`
+- [x] Create `.gitignore` — exclude `sssh` binary, `sssh.exe`, `coverage.out`, `.DS_Store`
 - [x] Create `Makefile` with targets:
-  - [x] `build` — `go build -o swiftssh ./cmd/swiftssh`
-  - [x] `run` — `go run ./cmd/swiftssh`
+  - [x] `build` — `go build -o sssh ./cmd/sssh`
+  - [x] `run` — `go run ./cmd/sssh`
   - [x] `test` — `go test ./...`
   - [x] `test-cover` — `go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out`
   - [x] `lint` — `go vet ./...`
   - [x] `fmt` — `go fmt ./...`
-  - [x] `release` — `go build -ldflags="-s -w" -o swiftssh ./cmd/swiftssh`
-  - [x] `clean` — remove `swiftssh`, `swiftssh.exe`, `coverage.out`
-- [x] Create `cmd/swiftssh/main.go` stub:
+  - [x] `release` — `go build -ldflags="-s -w" -o sssh ./cmd/sssh`
+  - [x] `clean` — remove `sssh`, `sssh.exe`, `coverage.out`
+- [x] Create `cmd/sssh/main.go` stub:
   - [x] Parse `--version` / `-v` flags using the `flag` package
-  - [x] Print `swiftssh v0.1.0` and exit if flag is set
+  - [x] Print `sssh v0.1.0` and exit if flag is set
   - [x] Otherwise print `"TUI coming soon"` (placeholder)
 - [x] Create all `internal/` subdirectories with empty `.go` stub files (package declarations only) so the module compiles
 - [x] Verify `go build` succeeds with zero errors (Note: Makefile requires `make` command; used `go build` directly)
@@ -194,7 +194,7 @@ swiftssh/
 
 **Goal:** A working Bubble Tea application that displays the host list with vim navigation and viewport scrolling. No SSH connection or search yet — just the core UI loop.
 **Depends on:** Phases 1, 2, 3
-**Verify:** `go run ./cmd/swiftssh` shows a scrollable list; `j`/`k` moves cursor; `q`/`Ctrl+C` quits
+**Verify:** `go run ./cmd/sssh` shows a scrollable list; `j`/`k` moves cursor; `q`/`Ctrl+C` quits
 
 ### Tasks
 
@@ -259,7 +259,7 @@ swiftssh/
 - [x] Test viewport retreats when cursor moves above visible area
 - [x] Test `New` sorts frequent hosts to top
 
-#### `cmd/swiftssh/main.go` (update)
+#### `cmd/sssh/main.go` (update)
 - [x] Load hosts from `platform.SSHConfigPath()` using `config.Parse`
 - [x] Load state from `platform.StateFilePath()` using `state.Load`
 - [x] Launch TUI with `tea.NewProgram(tui.New(hosts, st, statePath)).Run()`
@@ -349,7 +349,7 @@ swiftssh/
 #### Quick Fixes Applied
 - [x] F1 (High) — Column-aligned table layout: dynamic `colWidths()`, padded rows
 - [x] F2 (High) — Status bar updated: `Enter: connect | Ctrl+E: edit | esc: quit`
-- [x] F3 (High) — CLI SSH passthrough (`swiftssh user@host`): `runPassthrough()` + `looksLikeSSHArgs()` + `parseSSHTarget()`
+- [x] F3 (High) — CLI SSH passthrough (`sssh user@host`): `runPassthrough()` + `looksLikeSSHArgs()` + `parseSSHTarget()`
 
 #### Edit Mode — In-Place Host Editor (`Ctrl+E`)
 
@@ -436,44 +436,27 @@ This was the largest feature delivered from Phase 6 feedback. Hosts can now be e
 
 ## Phase 8 — First-Run UX & CLI Polish
 
-**Goal:** Detect first run and print alias suggestion. Wire remaining CLI flags. Ensure the app feels complete.
+**Goal:** Wire remaining CLI flags. Ensure the app feels complete.
 **Depends on:** Phases 3, 5, Phase 6
-**Verify:** First `./swiftssh` run prints alias suggestion; subsequent runs go straight to TUI; `--version` and `--config` work
+**Verify:** `./sssh --version` prints `sssh v0.1.0`; `--config` and `--no-frequent` work
 
 ### Already Done
-- [x] `--version` / `-v` — prints `swiftssh v0.1.0` and exits
+- [x] `--version` / `-v` — prints `sssh v0.1.0` and exits
 - [x] `--help` / `-h` — handled automatically by `flag.Parse()`
 - [x] Config parse error: prints `"Error: could not parse SSH config: <err>"` to stderr, exits 1
-- [x] SSH passthrough: `swiftssh user@host [flags]` — auto-saves unknown host to config, hands off to system `ssh`
+- [x] SSH passthrough: `sssh user@host [flags]` — auto-saves unknown host to config, hands off to system `ssh`
 
 ### Tasks
 
-#### `cmd/swiftssh/main.go` (update)
-- [ ] Add `--config <path>` flag — override SSH config path (pass to `config.Parse` and `config.AppendHost`)
-- [ ] Add `--no-frequent` flag — skip `state.FrequentHosts` ordering, show flat alphabetical list instead
-- [ ] Implement first-run detection:
-  - If `state.FirstRun == true`: print alias suggestion block to stderr, set `state.FirstRun = false`, save state
-  - Alias suggestions: `alias s='swiftssh'` for bash/zsh, `Set-Alias s swiftssh` for PowerShell
-- [ ] Handle empty host list: print `"No hosts found in <path>. Add entries to your SSH config."` and exit 0
-
-#### First-Run Output Format
-- [ ] Print to stderr (not stdout, so piping still works):
-  ```
-  Welcome to SwiftSSH!
-  To use the 's' alias, add one of the following to your shell profile:
-
-    bash/zsh:   alias s='swiftssh'
-    fish:       alias s swiftssh
-    PowerShell: Set-Alias s swiftssh
-
-  (SwiftSSH will not modify your shell profile automatically.)
-  ```
+#### `cmd/sssh/main.go` (update)
+- [x] Add `--config <path>` flag — override SSH config path (pass to `config.Parse` and `config.AppendHost`)
+- [x] Add `--no-frequent` flag — skip `state.FrequentHosts` ordering, show flat alphabetical list instead
+- [x] Handle empty host list: print `"No hosts found in <path>. Add entries to your SSH config."` and exit 0
 
 #### Tests
-- [ ] Test first-run detection prints alias block and sets `FirstRun = false`
-- [ ] Test `--config` flag passes alternative path to parser
-- [ ] Test `--no-frequent` flag returns flat alphabetical list
-- [ ] Test empty host list exits 0 with message
+- [x] Test `--config` flag passes alternative path to parser (`cmd/sssh/main_test.go` — `TestExtractConfigFlag`)
+- [x] Test `--no-frequent` flag returns flat alphabetical list (`TestNewNoFrequent_FlatAlphabeticalOrder`)
+- [x] Test empty host list exits 0 with message (manual: `./sssh --config /tmp/empty_ssh`)
 
 ---
 
@@ -486,27 +469,27 @@ This was the largest feature delivered from Phase 6 feedback. Hosts can now be e
 ### Tasks
 
 #### Coverage Pass
-- [ ] Run `go test -cover ./...` and identify uncovered paths in each package
-- [ ] `internal/config/parser_test.go` — add tests for:
+- [x] Run `go test -cover ./...` and identify uncovered paths in each package
+- [x] `internal/config/parser_test.go` — add tests for:
   - Config file with Windows-style CRLF line endings
   - Multi-word group names (e.g., `# @group My Work, Client Projects`)
   - Host with no Hostname directive (should still parse, Hostname field empty)
   - Very large config file (1,000+ hosts) — verify parse completes in < 1 second
-- [ ] `internal/config/writer_test.go` — add tests for:
+- [x] `internal/config/writer_test.go` — add tests for:
   - `AppendHost` when config file does not yet exist
-- [ ] `internal/tui/model_test.go` — add tests for:
+- [x] `internal/tui/model_test.go` — add tests for:
   - `View()` does not panic with an empty host list
   - `View()` does not panic with cursor at the very last host
-  - Backspace-to-empty in search mode returns to `modeNormal`
-  - `ctrl+w` in search mode clears query and returns to `modeNormal`
-  - `ctrl+i` with no keys sets `statusMsg` (no mode change)
-- [ ] `internal/state/state_test.go` — add test for corrupted JSON file (returns fresh state, no crash)
-- [ ] `internal/ssh/keys_test.go` — add test for directory with no `.pub` files
+  - Backspace-to-empty in search mode returns to `modeNormal` (already existed)
+  - `ctrl+w` in search mode clears query and returns to `modeNormal` (already existed)
+  - `ctrl+i` — skipped; identity picker was scoped out, no binding exists
+- [x] `internal/state/state_test.go` — add test for corrupted JSON file (returns fresh state, no crash)
+- [x] `internal/ssh/keys_test.go` — add test for directory with no `.pub` files
 
 #### Code Quality
-- [ ] Run `go vet ./...` — fix all warnings
-- [ ] Run `go fmt ./...` — ensure consistent formatting
-- [ ] Verify no `panic()` calls in production paths
+- [x] Run `go vet ./...` — clean
+- [x] Run `go fmt ./...` — consistent formatting confirmed
+- [x] Verify no `panic()` calls in production paths
 
 ---
 
@@ -533,16 +516,16 @@ This was the largest feature delivered from Phase 6 feedback. Hosts can now be e
   - Target OS matrix: `ubuntu-latest`, `macos-latest`, `windows-latest`
 - [ ] Create `release.yml` — runs on tag push (`v*`):
   - Build binaries for: `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`
-  - Upload as GitHub Release assets
-  - Use `go build -ldflags="-s -w -X main.version=${{ github.ref_name }}"` to embed version
+  - Upload as GitHub Release assets (named `sssh`, `sssh.exe`)
+  - Use `go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o sssh ./cmd/sssh` to embed version
 
 #### Version Embedding
-- [ ] Change `const Version = "0.1.0"` to `var version = "dev"` in `cmd/swiftssh/main.go` (ldflags requires a `var`, not a `const`)
+- [ ] Change `const Version = "0.1.0"` to `var version = "dev"` in `cmd/sssh/main.go` (ldflags requires a `var`, not a `const`)
 - [ ] Update `--version` output to use `version` var instead of `Version` const
 - [ ] Pass `-X main.version=<tag>` in release build ldflags so `--version` shows real tag
 
 #### Final Checks
-- [ ] `make release` produces a binary under 10MB
+- [ ] `make release` produces `sssh` binary under 10MB
 - [ ] Test binary on clean macOS, Linux, and Windows Terminal
 - [ ] Verify `--version` output matches the git tag
 - [ ] Tag `v0.1.0` and push to trigger release workflow
