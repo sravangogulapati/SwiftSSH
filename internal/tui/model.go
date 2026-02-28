@@ -60,37 +60,45 @@ type Model struct {
 	state       *state.State
 	statePath   string
 	statusMsg   string
+	noFrequent  bool
 	edit        *editForm
 }
 
-// New creates a new Model with hosts sorted by frequency and then alphabetically.
-func New(hosts []config.Host, st *state.State, statePath string) Model {
-	// Get frequent hosts sorted by connection count (descending)
-	frequent := state.FrequentHosts(st, hosts, len(hosts))
+// New creates a new Model. If noFrequent is true, hosts are sorted purely
+// alphabetically; otherwise frequent hosts bubble to the top.
+func New(hosts []config.Host, st *state.State, statePath string, noFrequent bool) Model {
+	var allHosts []config.Host
+	if noFrequent {
+		allHosts = make([]config.Host, len(hosts))
+		copy(allHosts, hosts)
+		sort.Slice(allHosts, func(i, j int) bool {
+			return strings.ToLower(allHosts[i].Alias) < strings.ToLower(allHosts[j].Alias)
+		})
+	} else {
+		// Get frequent hosts sorted by connection count (descending)
+		frequent := state.FrequentHosts(st, hosts, len(hosts))
 
-	// Build a set of frequent host IDs to exclude from remaining hosts
-	frequentSet := make(map[string]bool)
-	for _, h := range frequent {
-		frequentSet[h.Alias+"\x00"+h.SourceFile] = true
-	}
-
-	// Collect remaining hosts (not in frequent set)
-	var remaining []config.Host
-	for _, h := range hosts {
-		if !frequentSet[h.Alias+"\x00"+h.SourceFile] {
-			remaining = append(remaining, h)
+		// Build a set of frequent host IDs to exclude from remaining hosts
+		frequentSet := make(map[string]bool)
+		for _, h := range frequent {
+			frequentSet[h.Alias+"\x00"+h.SourceFile] = true
 		}
+
+		// Collect remaining hosts (not in frequent set)
+		var remaining []config.Host
+		for _, h := range hosts {
+			if !frequentSet[h.Alias+"\x00"+h.SourceFile] {
+				remaining = append(remaining, h)
+			}
+		}
+
+		// Sort remaining alphabetically by alias (case-insensitive)
+		sort.Slice(remaining, func(i, j int) bool {
+			return strings.ToLower(remaining[i].Alias) < strings.ToLower(remaining[j].Alias)
+		})
+
+		allHosts = append(frequent, remaining...)
 	}
-
-	// Sort remaining alphabetically by alias (case-insensitive)
-	sort.Slice(remaining, func(i, j int) bool {
-		return strings.ToLower(remaining[i].Alias) < strings.ToLower(remaining[j].Alias)
-	})
-
-	// Combine frequent hosts first, then remaining
-	allHosts := make([]config.Host, len(frequent)+len(remaining))
-	copy(allHosts, frequent)
-	copy(allHosts[len(frequent):], remaining)
 
 	// Initialize filtered list as a copy of all hosts
 	filtered := make([]config.Host, len(allHosts))
@@ -107,6 +115,7 @@ func New(hosts []config.Host, st *state.State, statePath string) Model {
 		searchQuery: "",
 		state:       st,
 		statePath:   statePath,
+		noFrequent:  noFrequent,
 	}
 }
 

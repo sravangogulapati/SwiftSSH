@@ -122,7 +122,7 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 			// Process include directive
 			expanded, err := expandTilde(value)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "swiftssh: warning: include %q: %v\n", value, err)
+				fmt.Fprintf(os.Stderr, "sssh: warning: include %q: %v\n", value, err)
 				prevLine = line
 				continue
 			}
@@ -135,13 +135,13 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 			// Glob expansion
 			matches, err := filepath.Glob(expanded)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "swiftssh: warning: include %q: glob error: %v\n", value, err)
+				fmt.Fprintf(os.Stderr, "sssh: warning: include %q: glob error: %v\n", value, err)
 				prevLine = line
 				continue
 			}
 
 			if len(matches) == 0 {
-				fmt.Fprintf(os.Stderr, "swiftssh: warning: include %q: no files matched\n", expanded)
+				fmt.Fprintf(os.Stderr, "sssh: warning: include %q: no files matched\n", expanded)
 				prevLine = line
 				continue
 			}
@@ -163,7 +163,7 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 				// Recursively parse
 				includedHosts, parseErr := parseFile(match, visited)
 				if parseErr != nil {
-					fmt.Fprintf(os.Stderr, "swiftssh: warning: include %q: %v\n", match, parseErr)
+					fmt.Fprintf(os.Stderr, "sssh: warning: include %q: %v\n", match, parseErr)
 					continue
 				}
 				hosts = append(hosts, includedHosts...)

@@ -15,35 +15,63 @@ import (
 	"github.com/srava/swiftssh/internal/tui"
 )
 
-const Version = "0.1.0"
+var version = "dev"
+
+// extractConfigFlag pre-scans args for --config <path> or --config=<path>
+// without calling flag.Parse(), so it works before the SSH passthrough check.
+func extractConfigFlag(args []string) string {
+	for i, arg := range args {
+		if (arg == "--config" || arg == "-config") && i+1 < len(args) {
+			return args[i+1]
+		}
+		if strings.HasPrefix(arg, "--config=") {
+			return strings.TrimPrefix(arg, "--config=")
+		}
+		if strings.HasPrefix(arg, "-config=") {
+			return strings.TrimPrefix(arg, "-config=")
+		}
+	}
+	return ""
+}
 
 func main() {
 	rawArgs := os.Args[1:]
+	configOverride := extractConfigFlag(rawArgs) // pre-scan before flag.Parse
 
 	// Detect SSH passthrough invocations before flag.Parse() so that
 	// SSH flags like -i, -p, -l don't trigger "flag provided but not defined".
 	// A passthrough call contains at least one argument that is either
 	// user@host syntax or an SSH option flag (-i, -p, -l, etc.).
 	if looksLikeSSHArgs(rawArgs) {
-		runPassthrough(rawArgs)
+		runPassthrough(rawArgs, configOverride)
 		return
 	}
 
-	version := flag.Bool("version", false, "Print version and exit")
-	flag.BoolVar(version, "v", false, "Print version and exit (shorthand)")
+	showVersion := flag.Bool("version", false, "Print version and exit")
+	flag.BoolVar(showVersion, "v", false, "Print version and exit (shorthand)")
+	configFlag := flag.String("config", "", "Path to SSH config file")
+	noFrequent := flag.Bool("no-frequent", false, "Flat alphabetical order (skip frequency sort)")
 	flag.Parse()
 
-	if *version {
-		fmt.Printf("swiftssh v%s\n", Version)
+	if *showVersion {
+		fmt.Printf("sssh %s\n", version)
 		os.Exit(0)
 	}
 
-	// No arguments — launch interactive TUI
 	configPath := platform.SSHConfigPath()
+	if *configFlag != "" {
+		configPath = *configFlag
+	}
+
 	hosts, err := config.Parse(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: could not parse SSH config: %v\n", err)
 		os.Exit(1)
+	}
+
+	if len(hosts) == 0 {
+		fmt.Printf("No hosts found in %s. Add entries to your SSH config.\n", configPath)
+		os.Exit(0)
 	}
 
 	statePath := platform.StateFilePath()
@@ -52,7 +80,7 @@ func main() {
 		st = &state.State{Connections: make(map[string]int)}
 	}
 
-	p := tea.NewProgram(tui.New(hosts, st, statePath), tea.WithAltScreen())
+	p := tea.NewProgram(tui.New(hosts, st, statePath, *noFrequent), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
 		os.Exit(1)
@@ -60,11 +88,11 @@ func main() {
 }
 
 // runPassthrough parses SSH-style arguments, auto-saves unknown hosts to
-// ~/.ssh/config, then hands off to the system ssh binary.
-func runPassthrough(args []string) {
+// the SSH config, then hands off to the system ssh binary.
+func runPassthrough(args []string, configOverride string) {
 	dest, port, user, identity := parseSSHTarget(args)
 	if dest == "" {
-		fmt.Fprintln(os.Stderr, "swiftssh: no destination found in arguments")
+		fmt.Fprintln(os.Stderr, "sssh: no destination found in arguments")
 		os.Exit(1)
 	}
 
@@ -81,9 +109,12 @@ func runPassthrough(args []string) {
 		port = "22"
 	}
 
-	// Auto-append to ~/.ssh/config if not already known
+	// Auto-append to config if not already known
 	configPath := platform.SSHConfigPath()
-	backupPath := platform.SSHConfigBackupPath()
+	if configOverride != "" {
+		configPath = configOverride
+	}
+	backupPath := filepath.Join(filepath.Dir(configPath), "config.bak")
 	hosts, _ := config.Parse(configPath)
 	if !config.IsKnownHost(hosts, hostname) {
 		alias := hostname
@@ -104,9 +135,9 @@ func runPassthrough(args []string) {
 			IdentityFile: absIdentity,
 		}
 		if err := config.AppendHost(configPath, backupPath, h); err != nil {
-			fmt.Fprintf(os.Stderr, "swiftssh: warning: could not save host to config: %v\n", err)
+			fmt.Fprintf(os.Stderr, "sssh: warning: could not save host to config: %v\n", err)
 		} else {
-			fmt.Fprintf(os.Stderr, "swiftssh: saved '%s' to SSH config\n", alias)
+			fmt.Fprintf(os.Stderr, "sssh: saved '%s' to SSH config\n", alias)
 		}
 	}
 
@@ -121,7 +152,7 @@ func runPassthrough(args []string) {
 }
 
 // looksLikeSSHArgs reports whether args appear to be an SSH passthrough
-// invocation rather than swiftssh-native flags. It returns true when any
+// invocation rather than sssh-native flags. It returns true when any
 // argument contains "@" (user@host) or is a recognized SSH option flag.
 func looksLikeSSHArgs(args []string) bool {
 	sshFlags := map[string]bool{

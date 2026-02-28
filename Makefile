@@ -1,13 +1,15 @@
 .PHONY: build build-windows run test test-cover lint fmt release release-windows release-all clean
 
+VERSION ?= dev
+
 build:
-	go build -o swiftssh ./cmd/swiftssh
+	go build -o sssh ./cmd/sssh
 
 build-windows:
-	GOOS=windows GOARCH=amd64 go build -o swiftssh.exe ./cmd/swiftssh
+	GOOS=windows GOARCH=amd64 go build -o sssh.exe ./cmd/sssh
 
 run: build
-	./swiftssh
+	./sssh
 
 test:
 	go test ./...
@@ -23,12 +25,12 @@ fmt:
 	go fmt ./...
 
 release:
-	go build -ldflags="-s -w" -o swiftssh ./cmd/swiftssh
+	go build -ldflags="-s -w -X main.version=$(VERSION)" -o sssh ./cmd/sssh
 
 release-windows:
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o swiftssh.exe ./cmd/swiftssh
+	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.version=$(VERSION)" -o sssh.exe ./cmd/sssh
 
 release-all: release release-windows
 
 clean:
-	rm -f swiftssh swiftssh.exe coverage.out
+	rm -f sssh sssh.exe swiftssh swiftssh.exe coverage.out

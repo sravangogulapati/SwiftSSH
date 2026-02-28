@@ -12,7 +12,7 @@ SwiftSSH is a single-binary Go CLI tool that provides an interactive, searchable
 - In-place host editor (`Ctrl+E`) — edit all 6 host fields without touching the file manually
 - SSH connection via `tea.ExecProcess` (proper TUI handoff)
 - Connection frequency tracking ("frequent" hosts bubble to top)
-- CLI SSH passthrough: `swiftssh user@host -p 2222` auto-saves unknown hosts to config and hands off to system `ssh`
+- CLI SSH passthrough: `sssh user@host -p 2222` auto-saves unknown hosts to config and hands off to system `ssh`
 - Magic comment groups: `# @group Work, Personal`
 - Cross-platform paths (Unix + Windows Terminal)
 
@@ -25,8 +25,8 @@ SwiftSSH is a single-binary Go CLI tool that provides an interactive, searchable
 
 ### Building
 ```bash
-go build -o swiftssh ./cmd/swiftssh
-go build -ldflags="-s -w" -o swiftssh ./cmd/swiftssh   # release build
+go build -o sssh ./cmd/sssh
+go build -ldflags="-s -w" -o sssh ./cmd/sssh   # release build
 ```
 
 ### Testing
@@ -46,9 +46,9 @@ go mod tidy -v
 
 ### Running
 ```bash
-go run ./cmd/swiftssh
-go run ./cmd/swiftssh --version
-go run ./cmd/swiftssh user@host -p 2222    # SSH passthrough
+go run ./cmd/sssh
+go run ./cmd/sssh --version
+go run ./cmd/sssh user@host -p 2222    # SSH passthrough
 ```
 
 ## Architecture & Code Organization
@@ -57,7 +57,7 @@ go run ./cmd/swiftssh user@host -p 2222    # SSH passthrough
 ```
 .
 ├── cmd/
-│   └── swiftssh/
+│   └── sssh/
 │       └── main.go               # Entry point, flag parsing, SSH passthrough
 ├── internal/
 │   ├── config/
@@ -116,7 +116,7 @@ type Host struct {
 
 ### Core Components & Data Flow
 
-#### 1. `cmd/swiftssh/main.go` — Entry Point
+#### 1. `cmd/sssh/main.go` — Entry Point
 Before any flag parsing, raw args are checked with `looksLikeSSHArgs()`. If they look like an SSH invocation (contain `@` or recognized SSH flags), `runPassthrough()` is called instead of the TUI. This avoids `flag: provided but not defined` errors when users pass SSH-style args.
 
 **Normal TUI flow:**
