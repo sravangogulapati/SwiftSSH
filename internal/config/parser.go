@@ -40,29 +40,21 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 	var hosts []Host
 	var current *Host
 	var prevLine string
+	var lineNum int
 
 	scanner := bufio.NewScanner(file)
 	configDir := filepath.Dir(path)
 
 	for scanner.Scan() {
 		line := scanner.Text()
+		lineNum++
 
 		// Find first whitespace to split keyword and value
 		trimmed := strings.TrimSpace(line)
 
-		// Handle empty lines and comments (not magic comments)
-		if trimmed == "" || (strings.HasPrefix(trimmed, "#") && !strings.Contains(trimmed, "@group")) {
-			prevLine = line
-			continue
-		}
-
-		// Check if this is a magic comment line (update prevLine even if not a directive)
-		if strings.HasPrefix(trimmed, "#") {
-			// If we're inside a host block, assign groups directly so that a
-			// trailing blank line doesn't wipe prevLine before the next Host.
-			if current != nil && strings.Contains(trimmed, "@group") {
-				current.Groups = parseMagicComment(trimmed)
-			}
+		// Handle empty lines and all comment lines (including magic comments).
+		// Magic comments set prevLine so the next Host directive can pick up groups.
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			prevLine = line
 			continue
 		}
@@ -94,6 +86,7 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 				Alias:      value,
 				SourceFile: path,
 				Groups:     parseMagicComment(prevLine),
+				LineStart:  lineNum,
 			}
 
 		case "hostname":
@@ -113,7 +106,7 @@ func parseFile(path string, visited map[string]bool) ([]Host, error) {
 
 		case "identityfile":
 			if current != nil {
-				current.IdentityFile = value
+				current.IdentityFile = strings.Trim(value, `"`)
 			}
 
 		case "include":

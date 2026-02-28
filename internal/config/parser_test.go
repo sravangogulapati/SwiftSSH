@@ -342,6 +342,107 @@ User john
 	testutil.AssertStringEqual(t, hosts[0].Alias, "myserver", "Only myserver should be in results")
 }
 
+// TestParse_LineStart verifies that LineStart is correctly tracked for each host block.
+func TestParse_LineStart(t *testing.T) {
+	t.Run("single host at line 1", func(t *testing.T) {
+		content := "Host myserver\nHostname example.com\n"
+		configPath := writeTempConfig(t, content)
+		hosts, err := Parse(configPath)
+		testutil.AssertNoError(t, err, "Parse should not error")
+		if len(hosts) != 1 {
+			t.Fatalf("expected 1 host, got %d", len(hosts))
+		}
+		if hosts[0].LineStart != 1 {
+			t.Errorf("expected LineStart=1, got %d", hosts[0].LineStart)
+		}
+	})
+
+	t.Run("host with leading blank line", func(t *testing.T) {
+		content := "\nHost myserver\nHostname example.com\n"
+		configPath := writeTempConfig(t, content)
+		hosts, err := Parse(configPath)
+		testutil.AssertNoError(t, err, "Parse should not error")
+		if len(hosts) != 1 {
+			t.Fatalf("expected 1 host, got %d", len(hosts))
+		}
+		if hosts[0].LineStart != 2 {
+			t.Errorf("expected LineStart=2 (blank + Host), got %d", hosts[0].LineStart)
+		}
+	})
+
+	t.Run("host preceded by magic comment", func(t *testing.T) {
+		content := "# @group Work\nHost myserver\nHostname example.com\n"
+		configPath := writeTempConfig(t, content)
+		hosts, err := Parse(configPath)
+		testutil.AssertNoError(t, err, "Parse should not error")
+		if len(hosts) != 1 {
+			t.Fatalf("expected 1 host, got %d", len(hosts))
+		}
+		// Host keyword is on line 2
+		if hosts[0].LineStart != 2 {
+			t.Errorf("expected LineStart=2 (comment + Host), got %d", hosts[0].LineStart)
+		}
+	})
+
+	t.Run("two hosts have distinct LineStart", func(t *testing.T) {
+		content := "Host first\nHostname a.example.com\n\nHost second\nHostname b.example.com\n"
+		configPath := writeTempConfig(t, content)
+		hosts, err := Parse(configPath)
+		testutil.AssertNoError(t, err, "Parse should not error")
+		if len(hosts) != 2 {
+			t.Fatalf("expected 2 hosts, got %d", len(hosts))
+		}
+		if hosts[0].LineStart == hosts[1].LineStart {
+			t.Errorf("expected distinct LineStart values, both are %d", hosts[0].LineStart)
+		}
+		if hosts[0].LineStart != 1 {
+			t.Errorf("expected first LineStart=1, got %d", hosts[0].LineStart)
+		}
+		if hosts[1].LineStart != 4 {
+			t.Errorf("expected second LineStart=4, got %d", hosts[1].LineStart)
+		}
+	})
+
+	t.Run("duplicate aliases have distinct LineStart", func(t *testing.T) {
+		content := "Host dev\nHostname a.example.com\n\nHost dev\nHostname b.example.com\n"
+		configPath := writeTempConfig(t, content)
+		hosts, err := Parse(configPath)
+		testutil.AssertNoError(t, err, "Parse should not error")
+		if len(hosts) != 2 {
+			t.Fatalf("expected 2 hosts, got %d", len(hosts))
+		}
+		if hosts[0].LineStart == hosts[1].LineStart {
+			t.Errorf("duplicate aliases should have distinct LineStart; both=%d", hosts[0].LineStart)
+		}
+	})
+
+	t.Run("included file LineStart relative to its own file", func(t *testing.T) {
+		tempDir := t.TempDir()
+		mainContent := "Host main\nHostname main.example.com\n\nInclude inc.conf\n"
+		writeTempConfigAt(t, tempDir, "config", mainContent)
+		writeTempConfigAt(t, tempDir, "inc.conf", "\nHost inc\nHostname inc.example.com\n")
+		mainPath := filepath.Join(tempDir, "config")
+		hosts, err := Parse(mainPath)
+		testutil.AssertNoError(t, err, "Parse should not error")
+		if len(hosts) != 2 {
+			t.Fatalf("expected 2 hosts, got %d", len(hosts))
+		}
+		// "inc" host is on line 2 of inc.conf
+		var incHost *Host
+		for i := range hosts {
+			if hosts[i].Alias == "inc" {
+				incHost = &hosts[i]
+			}
+		}
+		if incHost == nil {
+			t.Fatal("expected to find 'inc' host")
+		}
+		if incHost.LineStart != 2 {
+			t.Errorf("expected inc LineStart=2 (relative to inc.conf), got %d", incHost.LineStart)
+		}
+	})
+}
+
 // TestParse_MissingIncludedFile verifies missing includes are handled gracefully.
 func TestParse_MissingIncludedFile(t *testing.T) {
 	tempDir := t.TempDir()
@@ -363,4 +464,59 @@ Include /nonexistent/path/to/config.conf
 	}
 
 	testutil.AssertStringEqual(t, hosts[0].Alias, "main", "main host should still be parsed")
+}
+
+// TestParse_GroupNotLeakingToPreviousHost verifies that a magic comment immediately
+// before the second host is NOT assigned to the first host. The first host should
+// have no groups; only the second host should carry the group.
+func TestParse_GroupNotLeakingToPreviousHost(t *testing.T) {
+	content := "Host firsthost\n    Hostname 1.2.3.4\n\n# @group Group2\nHost secondhost\n    Hostname 5.6.7.8\n"
+	configPath := writeTempConfig(t, content)
+
+	hosts, err := Parse(configPath)
+	testutil.AssertNoError(t, err, "Parse should not error")
+	if len(hosts) != 2 {
+		t.Fatalf("expected 2 hosts, got %d", len(hosts))
+	}
+
+	if len(hosts[0].Groups) != 0 {
+		t.Errorf("first host should have no groups, got %v", hosts[0].Groups)
+	}
+
+	expected := []string{"Group2"}
+	testutil.AssertSliceEqual(t, hosts[1].Groups, expected, "second host groups mismatch")
+}
+
+// TestParse_IdentityFileStripsQuotes verifies that a quoted IdentityFile value is stored
+// without surrounding quotes, so buildHostBlock doesn't double-quote it on save.
+func TestParse_IdentityFileStripsQuotes(t *testing.T) {
+	t.Run("quoted path stripped", func(t *testing.T) {
+		content := "Host myhost\n    Hostname myhost.example.com\n    IdentityFile \"/home/user/my keys/id_rsa\"\n"
+		path := writeTempConfig(t, content)
+
+		hosts, err := Parse(path)
+		testutil.AssertNoError(t, err, "Parse should succeed")
+		if len(hosts) != 1 {
+			t.Fatalf("expected 1 host, got %d", len(hosts))
+		}
+		want := "/home/user/my keys/id_rsa"
+		if hosts[0].IdentityFile != want {
+			t.Errorf("expected IdentityFile=%q (no surrounding quotes), got %q", want, hosts[0].IdentityFile)
+		}
+	})
+
+	t.Run("unquoted path unchanged", func(t *testing.T) {
+		content := "Host myhost\n    Hostname myhost.example.com\n    IdentityFile /home/user/.ssh/id_rsa\n"
+		path := writeTempConfig(t, content)
+
+		hosts, err := Parse(path)
+		testutil.AssertNoError(t, err, "Parse should succeed")
+		if len(hosts) != 1 {
+			t.Fatalf("expected 1 host, got %d", len(hosts))
+		}
+		want := "/home/user/.ssh/id_rsa"
+		if hosts[0].IdentityFile != want {
+			t.Errorf("expected IdentityFile=%q, got %q", want, hosts[0].IdentityFile)
+		}
+	})
 }
