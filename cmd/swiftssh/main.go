@@ -18,6 +18,17 @@ import (
 const Version = "0.1.0"
 
 func main() {
+	rawArgs := os.Args[1:]
+
+	// Detect SSH passthrough invocations before flag.Parse() so that
+	// SSH flags like -i, -p, -l don't trigger "flag provided but not defined".
+	// A passthrough call contains at least one argument that is either
+	// user@host syntax or an SSH option flag (-i, -p, -l, etc.).
+	if looksLikeSSHArgs(rawArgs) {
+		runPassthrough(rawArgs)
+		return
+	}
+
 	version := flag.Bool("version", false, "Print version and exit")
 	flag.BoolVar(version, "v", false, "Print version and exit (shorthand)")
 	flag.Parse()
@@ -25,13 +36,6 @@ func main() {
 	if *version {
 		fmt.Printf("swiftssh v%s\n", Version)
 		os.Exit(0)
-	}
-
-	// If extra arguments are given, treat them as SSH passthrough arguments:
-	//   swiftssh user@hostname [-p port] [-i key] ...
-	if args := flag.Args(); len(args) > 0 {
-		runPassthrough(args)
-		return
 	}
 
 	// No arguments — launch interactive TUI
@@ -114,6 +118,33 @@ func runPassthrough(args []string) {
 	if err := cmd.Run(); err != nil {
 		os.Exit(1)
 	}
+}
+
+// looksLikeSSHArgs reports whether args appear to be an SSH passthrough
+// invocation rather than swiftssh-native flags. It returns true when any
+// argument contains "@" (user@host) or is a recognized SSH option flag.
+func looksLikeSSHArgs(args []string) bool {
+	sshFlags := map[string]bool{
+		"-i": true, "-p": true, "-l": true, "-b": true, "-c": true,
+		"-D": true, "-E": true, "-e": true, "-F": true, "-I": true,
+		"-J": true, "-L": true, "-m": true, "-o": true, "-Q": true,
+		"-R": true, "-S": true, "-w": true, "-W": true,
+		// boolean SSH flags
+		"-4": true, "-6": true, "-A": true, "-a": true, "-C": true,
+		"-f": true, "-G": true, "-g": true, "-K": true, "-k": true,
+		"-M": true, "-N": true, "-n": true, "-q": true, "-s": true,
+		"-T": true, "-t": true, "-V": true, "-X": true, "-x": true,
+		"-Y": true, "-y": true,
+	}
+	for _, arg := range args {
+		if strings.Contains(arg, "@") {
+			return true
+		}
+		if sshFlags[arg] {
+			return true
+		}
+	}
+	return false
 }
 
 // parseSSHTarget scans SSH-style arguments and extracts the destination,
