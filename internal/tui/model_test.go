@@ -50,7 +50,7 @@ func TestCursorWraps(t *testing.T) {
 
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 10
 
 	// Test wrap forward: press ↓ 3 times
@@ -84,7 +84,7 @@ func TestViewportAdvances(t *testing.T) {
 
 	hosts := makeHosts("a", "b", "c", "d", "e")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 3
 
 	// Press ↓ 3 times to move cursor from 0 to 3
@@ -106,7 +106,7 @@ func TestViewportRetreats(t *testing.T) {
 
 	hosts := makeHosts("a", "b", "c", "d", "e")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 3
 
 	// Manually set cursor=3, viewport=1
@@ -137,7 +137,7 @@ func TestNewSortsFrequentHostsFirst(t *testing.T) {
 		"alpha": 0,
 	})
 
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	if len(m.allHosts) != 3 {
 		t.Errorf("Expected 3 hosts, got %d", len(m.allHosts))
@@ -160,7 +160,7 @@ func TestNewSortsFrequentHostsFirst(t *testing.T) {
 func TestApplySearch_EmptyQuery(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	m.searchQuery = ""
 	applySearch(&m)
@@ -174,7 +174,7 @@ func TestApplySearch_EmptyQuery(t *testing.T) {
 func TestApplySearch_ByAlias(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	m.searchQuery = "beta"
 	applySearch(&m)
@@ -194,7 +194,7 @@ func TestApplySearch_ByHostname(t *testing.T) {
 		{Alias: "prod", Hostname: "10.0.0.5", User: "alice", Port: "22", Groups: []string{}, SourceFile: "/tmp/config"},
 	}
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	m.searchQuery = "192"
 	applySearch(&m)
@@ -214,7 +214,7 @@ func TestApplySearch_ByGroup(t *testing.T) {
 		{Alias: "home", Hostname: "home.example.com", User: "alice", Port: "22", Groups: []string{"Personal"}, SourceFile: "/tmp/config"},
 	}
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	m.searchQuery = "Work"
 	applySearch(&m)
@@ -231,7 +231,7 @@ func TestApplySearch_ByGroup(t *testing.T) {
 func TestApplySearch_ResetsCursorAndViewport(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma", "delta", "epsilon")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 3
 	m.cursor = 4
 	m.viewport = 2
@@ -251,7 +251,7 @@ func TestApplySearch_ResetsCursorAndViewport(t *testing.T) {
 func TestSearchMode_NavigateDown(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 10
 	m.mode = modeSearch
 
@@ -268,7 +268,7 @@ func TestSearchMode_NavigateDown(t *testing.T) {
 func TestSearchMode_NavigateUp(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 10
 	m.mode = modeSearch
 	m.cursor = 2
@@ -286,7 +286,7 @@ func TestSearchMode_NavigateUp(t *testing.T) {
 func TestSearchMode_BackspaceOnEmptyExitsSearch(t *testing.T) {
 	hosts := makeHosts("alpha", "beta")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.mode = modeSearch
 	m.searchQuery = ""
 
@@ -301,7 +301,7 @@ func TestSearchMode_BackspaceOnEmptyExitsSearch(t *testing.T) {
 func TestSearchMode_BackspaceOnLastCharExitsSearch(t *testing.T) {
 	hosts := makeHosts("alpha", "beta")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.mode = modeSearch
 	m.searchQuery = "a"
 
@@ -318,7 +318,7 @@ func TestSearchMode_BackspaceOnLastCharExitsSearch(t *testing.T) {
 func TestSearchMode_CtrlWClearsQuery(t *testing.T) {
 	hosts := makeHosts("alpha", "beta")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.mode = modeSearch
 	m.searchQuery = "hello"
 
@@ -336,7 +336,7 @@ func TestSearchMode_CtrlWClearsQuery(t *testing.T) {
 func TestNormalMode_TypeToSearch(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	m = pressKey(m, "a")
 
@@ -353,7 +353,7 @@ func TestNormalMode_TypeToSearch(t *testing.T) {
 func TestNormalMode_JEntersSearch(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 10
 
 	m = pressKey(m, "j")
@@ -374,7 +374,7 @@ func TestNormalMode_JEntersSearch(t *testing.T) {
 func TestSearchMode_JAppendsToQuery(t *testing.T) {
 	hosts := makeHosts("alpha", "beta", "gamma")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.mode = modeSearch
 	m.searchQuery = "al"
 
@@ -421,7 +421,7 @@ func pressCtrlU(m Model) Model {
 func TestEditMode_OpenClose(t *testing.T) {
 	hosts := makeHostsWithLine("alpha", "beta")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m.viewHeight = 10
 
 	m = pressCtrlE(m)
@@ -450,7 +450,7 @@ func TestEditMode_NoOpenOnZeroLineStart(t *testing.T) {
 			SourceFile: "/tmp/config", Groups: []string{}, LineStart: 0},
 	}
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	m = pressCtrlE(m)
 	if m.mode == modeEdit {
@@ -476,7 +476,7 @@ func TestEditMode_PrePopulatesFields(t *testing.T) {
 		},
 	}
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	m = pressCtrlE(m)
 	if m.edit == nil {
@@ -508,7 +508,7 @@ func TestEditMode_PrePopulatesFields(t *testing.T) {
 func TestEditMode_FieldNavigation(t *testing.T) {
 	hosts := makeHostsWithLine("alpha")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m = pressCtrlE(m)
 
 	if m.edit.activeField != fieldAlias {
@@ -540,7 +540,7 @@ func TestEditMode_FieldNavigation(t *testing.T) {
 func TestEditMode_TextInput(t *testing.T) {
 	hosts := makeHostsWithLine("alpha")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m = pressCtrlE(m)
 
 	// Clear the alias field first
@@ -574,7 +574,7 @@ func TestEditMode_TextInput(t *testing.T) {
 func TestEditMode_ValidationEmptyAlias(t *testing.T) {
 	hosts := makeHostsWithLine("alpha")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m = pressCtrlE(m)
 
 	// Clear alias field
@@ -596,7 +596,7 @@ func TestEditMode_ValidationEmptyAlias(t *testing.T) {
 func TestEditMode_ValidationEmptyHostname(t *testing.T) {
 	hosts := makeHostsWithLine("alpha")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 	m = pressCtrlE(m)
 
 	// Navigate to hostname field and clear it
@@ -619,7 +619,7 @@ func TestEditMode_ValidationEmptyHostname(t *testing.T) {
 func TestEditMode_SaveUpdatesAllHosts(t *testing.T) {
 	hosts := makeHostsWithLine("alpha", "beta")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	updated := config.Host{
 		Alias:      "alpha-updated",
@@ -653,7 +653,7 @@ func TestEditMode_SaveUpdatesAllHosts(t *testing.T) {
 func TestEditMode_SaveUpdatesLineStart(t *testing.T) {
 	hosts := makeHostsWithLine("alpha")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	updated := config.Host{
 		Alias:      "alpha",
@@ -710,7 +710,7 @@ func TestEditMode_LineDeltaUpdatesSubsequentHosts(t *testing.T) {
 		},
 	}
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	// alpha (index 0 in allHosts) is saved; its block grew by 1 line (lineDelta=+1).
 	updatedAlpha := config.Host{
@@ -774,11 +774,58 @@ func TestEditMode_LineDeltaUpdatesSubsequentHosts(t *testing.T) {
 	}
 }
 
+// TestNewNoFrequent_FlatAlphabeticalOrder tests that noFrequent=true ignores connection counts.
+func TestNewNoFrequent_FlatAlphabeticalOrder(t *testing.T) {
+	hosts := makeHosts("gamma", "alpha", "beta")
+	st := makeState(map[string]int{"gamma": 10})
+	m := New(hosts, st, "/tmp/state.json", true)
+
+	if len(m.allHosts) != 3 {
+		t.Fatalf("expected 3 hosts, got %d", len(m.allHosts))
+	}
+	if m.allHosts[0].Alias != "alpha" {
+		t.Errorf("expected allHosts[0]=alpha, got %s", m.allHosts[0].Alias)
+	}
+	if m.allHosts[1].Alias != "beta" {
+		t.Errorf("expected allHosts[1]=beta, got %s", m.allHosts[1].Alias)
+	}
+	if m.allHosts[2].Alias != "gamma" {
+		t.Errorf("expected allHosts[2]=gamma, got %s", m.allHosts[2].Alias)
+	}
+}
+
+// TestNewNoFrequent_StoresStateRef tests that state is stored even when noFrequent=true.
+func TestNewNoFrequent_StoresStateRef(t *testing.T) {
+	hosts := makeHosts("alpha")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json", true)
+
+	if m.state == nil {
+		t.Error("expected m.state to be non-nil when noFrequent=true")
+	}
+}
+
+// TestView_EmptyHostList_NoPanic verifies that View() does not panic when the host list is empty.
+func TestView_EmptyHostList_NoPanic(t *testing.T) {
+	m := New([]config.Host{}, makeState(make(map[string]int)), "/tmp/state.json", false)
+	m.viewHeight = 10
+	_ = m.View()
+}
+
+// TestView_CursorAtLastHost_NoPanic verifies that View() does not panic when the cursor is at the last host.
+func TestView_CursorAtLastHost_NoPanic(t *testing.T) {
+	hosts := makeHosts("alpha", "beta", "gamma")
+	m := New(hosts, makeState(make(map[string]int)), "/tmp/state.json", false)
+	m.viewHeight = 10
+	m.cursor = len(m.filtered) - 1
+	_ = m.View()
+}
+
 // TestNormalMode_EscQuits tests that pressing Esc in normal mode returns a quit command.
 func TestNormalMode_EscQuits(t *testing.T) {
 	hosts := makeHosts("alpha")
 	st := makeState(make(map[string]int))
-	m := New(hosts, st, "/tmp/state.json")
+	m := New(hosts, st, "/tmp/state.json", false)
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if cmd == nil {

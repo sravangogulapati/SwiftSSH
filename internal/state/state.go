@@ -30,7 +30,8 @@ func Load(path string) (*State, error) {
 
 	s := &State{}
 	if err := json.Unmarshal(data, s); err != nil {
-		return nil, err
+		// Corrupted state file — treat as a fresh install rather than erroring.
+		return &State{Connections: make(map[string]int)}, nil
 	}
 
 	// Guard: if Connections is nil after unmarshal, initialize to empty map.

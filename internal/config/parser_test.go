@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/srava/swiftssh/internal/testutil"
 )
@@ -485,6 +487,70 @@ func TestParse_GroupNotLeakingToPreviousHost(t *testing.T) {
 
 	expected := []string{"Group2"}
 	testutil.AssertSliceEqual(t, hosts[1].Groups, expected, "second host groups mismatch")
+}
+
+// TestParse_CRLFLineEndings verifies that config files with Windows CRLF line endings are parsed correctly.
+func TestParse_CRLFLineEndings(t *testing.T) {
+	content := "Host dev\r\n\tHostname 192.168.1.10\r\n\tUser alice\r\n"
+	configPath := writeTempConfig(t, content)
+	hosts, err := Parse(configPath)
+
+	testutil.AssertNoError(t, err, "Parse should not error on CRLF line endings")
+	if len(hosts) != 1 {
+		t.Fatalf("expected 1 host, got %d", len(hosts))
+	}
+	testutil.AssertStringEqual(t, hosts[0].Alias, "dev", "Alias mismatch")
+	testutil.AssertStringEqual(t, hosts[0].Hostname, "192.168.1.10", "Hostname mismatch")
+	testutil.AssertStringEqual(t, hosts[0].User, "alice", "User mismatch")
+}
+
+// TestParse_MultiWordGroupNames verifies that group names containing spaces are preserved.
+func TestParse_MultiWordGroupNames(t *testing.T) {
+	content := "# @group My Work, Client Projects\nHost dev\n\tHostname 1.2.3.4\n"
+	configPath := writeTempConfig(t, content)
+	hosts, err := Parse(configPath)
+
+	testutil.AssertNoError(t, err, "Parse should not error")
+	if len(hosts) != 1 {
+		t.Fatalf("expected 1 host, got %d", len(hosts))
+	}
+	expected := []string{"My Work", "Client Projects"}
+	testutil.AssertSliceEqual(t, hosts[0].Groups, expected, "Groups with multi-word names")
+}
+
+// TestParse_HostWithNoHostname verifies that a host block without a Hostname directive is parsed correctly.
+func TestParse_HostWithNoHostname(t *testing.T) {
+	content := "Host dev\n\tUser alice\n"
+	configPath := writeTempConfig(t, content)
+	hosts, err := Parse(configPath)
+
+	testutil.AssertNoError(t, err, "Parse should not error")
+	if len(hosts) != 1 {
+		t.Fatalf("expected 1 host, got %d", len(hosts))
+	}
+	testutil.AssertStringEqual(t, hosts[0].Alias, "dev", "Alias mismatch")
+	testutil.AssertStringEqual(t, hosts[0].Hostname, "", "Hostname should be empty")
+}
+
+// TestParse_LargeConfig_CompletesIn1s verifies that parsing 1000 host blocks finishes in under 1 second.
+func TestParse_LargeConfig_CompletesIn1s(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 1000; i++ {
+		fmt.Fprintf(&b, "Host host%d\n\tHostname 10.0.%d.%d\n\n", i, i/256, i%256)
+	}
+	configPath := writeTempConfig(t, b.String())
+
+	start := time.Now()
+	hosts, err := Parse(configPath)
+	duration := time.Since(start)
+
+	testutil.AssertNoError(t, err, "Parse should not error on large config")
+	if len(hosts) != 1000 {
+		t.Errorf("expected 1000 hosts, got %d", len(hosts))
+	}
+	if duration >= time.Second {
+		t.Errorf("Parse took too long: %v (must be < 1s)", duration)
+	}
 }
 
 // TestParse_IdentityFileStripsQuotes verifies that a quoted IdentityFile value is stored

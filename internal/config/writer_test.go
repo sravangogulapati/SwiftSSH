@@ -268,6 +268,26 @@ func TestAppendHost_EmptyFile_NoLeadingBlankLine(t *testing.T) {
 	}
 }
 
+// TestAppendHost_NonExistentFile verifies that AppendHost creates the config file when it does not exist.
+func TestAppendHost_NonExistentFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config") // does not exist yet
+	backupPath := filepath.Join(dir, "config.bak")
+	h := Host{Alias: "dev", Hostname: "1.2.3.4", Port: "22"}
+
+	if err := AppendHost(configPath, backupPath, h); err != nil {
+		t.Fatalf("AppendHost on non-existent file: %v", err)
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("expected config file to be created: %v", err)
+	}
+	if !strings.Contains(string(data), "Host dev") {
+		t.Errorf("expected host block in newly created file, got:\n%s", string(data))
+	}
+}
+
 // --- buildHostBlock tests ---
 
 func TestBuildHostBlock_AllFields(t *testing.T) {

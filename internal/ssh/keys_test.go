@@ -52,6 +52,17 @@ func TestScanPublicKeys_ExcludesMissingPrivateKey(t *testing.T) {
 	}
 }
 
+func TestScanPublicKeys_EmptyDirectory(t *testing.T) {
+	dir := t.TempDir() // no files
+	keys, err := ScanPublicKeys(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(keys) != 0 {
+		t.Errorf("expected 0 keys, got %d", len(keys))
+	}
+}
+
 func TestKeyLabel(t *testing.T) {
 	label := KeyLabel("/home/user/.ssh/id_ed25519.pub")
 	expected := "id_ed25519"

@@ -127,6 +127,25 @@ func TestFrequentHosts_FewerThanN(t *testing.T) {
 	testutil.AssertEqual(t, frequent[1].Alias, "beta", "Second should be 'beta' (count 2)")
 }
 
+// TestLoad_CorruptedJSON verifies that a corrupted state file returns a fresh state (no error).
+func TestLoad_CorruptedJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	if err := os.WriteFile(path, []byte("{not valid json"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected no error for corrupted JSON, got: %v", err)
+	}
+	if st == nil {
+		t.Fatal("expected non-nil state for corrupted JSON")
+	}
+	if st.Connections == nil {
+		t.Error("expected Connections map to be initialized")
+	}
+}
+
 // TestSave_MissingParentDirectory verifies that Save creates parent directories as needed.
 func TestSave_MissingParentDirectory(t *testing.T) {
 	// Create a path with nested non-existent directories.
