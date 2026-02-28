@@ -9,6 +9,7 @@ type Host struct {
 	IdentityFile string   // Path to the private key file (IdentityFile directive)
 	Groups       []string // Group tags parsed from magic comment "# @group Work, Personal"
 	SourceFile   string   // The config file this host was parsed from (for Include support)
+	LineStart    int      // 1-based line of "Host <alias>" in SourceFile; 0 if untracked
 }
 
 // ParsedConfig represents the complete parsed SSH configuration.

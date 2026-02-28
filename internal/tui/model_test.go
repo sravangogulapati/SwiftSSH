@@ -388,6 +388,392 @@ func TestSearchMode_JAppendsToQuery(t *testing.T) {
 	}
 }
 
+// makeHostsWithLine builds hosts that have LineStart set (needed for edit mode).
+func makeHostsWithLine(aliases ...string) []config.Host {
+	hosts := make([]config.Host, len(aliases))
+	for i, alias := range aliases {
+		hosts[i] = config.Host{
+			Alias:      alias,
+			Hostname:   alias + ".example.com",
+			User:       "user",
+			Port:       "22",
+			SourceFile: "/home/user/.ssh/config",
+			Groups:     []string{},
+			LineStart:  (i * 3) + 1, // non-zero, distinct per host
+		}
+	}
+	return hosts
+}
+
+// pressCtrlE sends a ctrl+e key message and returns the updated model.
+func pressCtrlE(m Model) Model {
+	updatedModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlE})
+	return updatedModel.(Model)
+}
+
+// pressCtrlU sends a ctrl+u key message.
+func pressCtrlU(m Model) Model {
+	updatedModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	return updatedModel.(Model)
+}
+
+// TestEditMode_OpenClose tests that Ctrl+E opens edit mode and Esc closes it.
+func TestEditMode_OpenClose(t *testing.T) {
+	hosts := makeHostsWithLine("alpha", "beta")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+	m.viewHeight = 10
+
+	m = pressCtrlE(m)
+	if m.mode != modeEdit {
+		t.Errorf("expected modeEdit after Ctrl+E, got %d", m.mode)
+	}
+	if m.edit == nil {
+		t.Fatal("expected edit form to be non-nil")
+	}
+
+	// Esc should cancel and return to normal mode
+	m = pressSpecialKey(m, tea.KeyEsc)
+	if m.mode != modeNormal {
+		t.Errorf("expected modeNormal after Esc, got %d", m.mode)
+	}
+	if m.edit != nil {
+		t.Error("expected edit form to be nil after Esc")
+	}
+}
+
+// TestEditMode_NoOpenOnZeroLineStart tests that Ctrl+E on a host with LineStart=0
+// does not enter edit mode but sets a statusMsg instead.
+func TestEditMode_NoOpenOnZeroLineStart(t *testing.T) {
+	hosts := []config.Host{
+		{Alias: "notrack", Hostname: "notrack.example.com", Port: "22",
+			SourceFile: "/tmp/config", Groups: []string{}, LineStart: 0},
+	}
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+
+	m = pressCtrlE(m)
+	if m.mode == modeEdit {
+		t.Error("should not enter edit mode for LineStart=0 host")
+	}
+	if m.statusMsg == "" {
+		t.Error("expected a statusMsg explaining the failure")
+	}
+}
+
+// TestEditMode_PrePopulatesFields tests that all 6 fields are pre-populated from the host.
+func TestEditMode_PrePopulatesFields(t *testing.T) {
+	hosts := []config.Host{
+		{
+			Alias:        "myhost",
+			Hostname:     "my.example.com",
+			User:         "alice",
+			Port:         "2222",
+			IdentityFile: "/home/alice/.ssh/id_rsa",
+			Groups:       []string{"Work", "Personal"},
+			SourceFile:   "/tmp/config",
+			LineStart:    1,
+		},
+	}
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+
+	m = pressCtrlE(m)
+	if m.edit == nil {
+		t.Fatal("expected edit form")
+	}
+
+	f := m.edit
+	if f.fields[fieldAlias] != "myhost" {
+		t.Errorf("expected Alias='myhost', got %q", f.fields[fieldAlias])
+	}
+	if f.fields[fieldHostname] != "my.example.com" {
+		t.Errorf("expected Hostname='my.example.com', got %q", f.fields[fieldHostname])
+	}
+	if f.fields[fieldUser] != "alice" {
+		t.Errorf("expected User='alice', got %q", f.fields[fieldUser])
+	}
+	if f.fields[fieldPort] != "2222" {
+		t.Errorf("expected Port='2222', got %q", f.fields[fieldPort])
+	}
+	if f.fields[fieldIdentityFile] != "/home/alice/.ssh/id_rsa" {
+		t.Errorf("expected IdentityFile pre-populated, got %q", f.fields[fieldIdentityFile])
+	}
+	if f.fields[fieldGroups] != "Work, Personal" {
+		t.Errorf("expected Groups='Work, Personal', got %q", f.fields[fieldGroups])
+	}
+}
+
+// TestEditMode_FieldNavigation tests that ↓/↑ cycles through fields.
+func TestEditMode_FieldNavigation(t *testing.T) {
+	hosts := makeHostsWithLine("alpha")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+	m = pressCtrlE(m)
+
+	if m.edit.activeField != fieldAlias {
+		t.Errorf("expected initial activeField=fieldAlias, got %d", m.edit.activeField)
+	}
+
+	// ↓ cycles forward
+	m = pressSpecialKey(m, tea.KeyDown)
+	if m.edit.activeField != fieldHostname {
+		t.Errorf("after ↓: expected fieldHostname, got %d", m.edit.activeField)
+	}
+
+	// ↑ cycles backward
+	m = pressSpecialKey(m, tea.KeyUp)
+	if m.edit.activeField != fieldAlias {
+		t.Errorf("after ↑: expected fieldAlias, got %d", m.edit.activeField)
+	}
+
+	// ↓ wraps around past last field
+	for i := 0; i < int(fieldCount); i++ {
+		m = pressSpecialKey(m, tea.KeyDown)
+	}
+	if m.edit.activeField != fieldAlias {
+		t.Errorf("after full ↓ cycle: expected fieldAlias, got %d", m.edit.activeField)
+	}
+}
+
+// TestEditMode_TextInput tests printable appending, backspace delete, and Ctrl+U clear.
+func TestEditMode_TextInput(t *testing.T) {
+	hosts := makeHostsWithLine("alpha")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+	m = pressCtrlE(m)
+
+	// Clear the alias field first
+	m = pressCtrlU(m)
+	if m.edit.fields[fieldAlias] != "" {
+		t.Errorf("after Ctrl+U: expected empty alias, got %q", m.edit.fields[fieldAlias])
+	}
+
+	// Append printable characters
+	m = pressKey(m, "n")
+	m = pressKey(m, "e")
+	m = pressKey(m, "w")
+	if m.edit.fields[fieldAlias] != "new" {
+		t.Errorf("after typing 'new': expected alias='new', got %q", m.edit.fields[fieldAlias])
+	}
+
+	// Backspace deletes last rune
+	m = pressSpecialKey(m, tea.KeyBackspace)
+	if m.edit.fields[fieldAlias] != "ne" {
+		t.Errorf("after backspace: expected alias='ne', got %q", m.edit.fields[fieldAlias])
+	}
+
+	// Ctrl+U clears the field
+	m = pressCtrlU(m)
+	if m.edit.fields[fieldAlias] != "" {
+		t.Errorf("after Ctrl+U: expected empty alias, got %q", m.edit.fields[fieldAlias])
+	}
+}
+
+// TestEditMode_ValidationEmptyAlias tests that saving with an empty alias shows an error.
+func TestEditMode_ValidationEmptyAlias(t *testing.T) {
+	hosts := makeHostsWithLine("alpha")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+	m = pressCtrlE(m)
+
+	// Clear alias field
+	m = pressCtrlU(m)
+
+	// Press Enter to save
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+
+	if m.mode != modeEdit {
+		t.Errorf("expected to remain in modeEdit on validation failure, got %d", m.mode)
+	}
+	if m.edit.statusMsg == "" {
+		t.Error("expected validation error message for empty alias")
+	}
+}
+
+// TestEditMode_ValidationEmptyHostname tests that saving with an empty hostname shows an error.
+func TestEditMode_ValidationEmptyHostname(t *testing.T) {
+	hosts := makeHostsWithLine("alpha")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+	m = pressCtrlE(m)
+
+	// Navigate to hostname field and clear it
+	m = pressSpecialKey(m, tea.KeyDown) // move to Hostname
+	m = pressCtrlU(m)
+
+	// Press Enter to save
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+
+	if m.mode != modeEdit {
+		t.Errorf("expected to remain in modeEdit on validation failure, got %d", m.mode)
+	}
+	if m.edit.statusMsg == "" {
+		t.Error("expected validation error message for empty hostname")
+	}
+}
+
+// TestEditMode_SaveUpdatesAllHosts tests that receiving editSavedMsg updates allHosts.
+func TestEditMode_SaveUpdatesAllHosts(t *testing.T) {
+	hosts := makeHostsWithLine("alpha", "beta")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+
+	updated := config.Host{
+		Alias:      "alpha-updated",
+		Hostname:   "updated.example.com",
+		Port:       "22",
+		SourceFile: "/home/user/.ssh/config",
+		LineStart:  1,
+		Groups:     []string{},
+	}
+
+	// Directly inject the editSavedMsg
+	newModel, _ := m.Update(editSavedMsg{updated: updated, index: 0})
+	m = newModel.(Model)
+
+	if m.allHosts[0].Alias != "alpha-updated" {
+		t.Errorf("expected allHosts[0].Alias='alpha-updated', got %q", m.allHosts[0].Alias)
+	}
+	if m.mode != modeNormal {
+		t.Errorf("expected modeNormal after save, got %d", m.mode)
+	}
+	if m.statusMsg != "Saved." {
+		t.Errorf("expected statusMsg='Saved.', got %q", m.statusMsg)
+	}
+	if m.edit != nil {
+		t.Error("expected edit form to be cleared after save")
+	}
+}
+
+// TestEditMode_SaveUpdatesLineStart tests that editSavedMsg propagates the new LineStart
+// from the saved host into allHosts, so subsequent edits use the correct position.
+func TestEditMode_SaveUpdatesLineStart(t *testing.T) {
+	hosts := makeHostsWithLine("alpha")
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+
+	updated := config.Host{
+		Alias:      "alpha",
+		Hostname:   "alpha.example.com",
+		Port:       "22",
+		SourceFile: "/home/user/.ssh/config",
+		LineStart:  99, // new LineStart returned by ReplaceHostBlock after save
+		Groups:     []string{},
+	}
+
+	newModel, _ := m.Update(editSavedMsg{
+		updated:           updated,
+		index:             0,
+		lineDelta:         0,
+		originalLineStart: 1,
+		sourceFile:        "/home/user/.ssh/config",
+	})
+	m = newModel.(Model)
+
+	if m.allHosts[0].LineStart != 99 {
+		t.Errorf("expected allHosts[0].LineStart=99, got %d", m.allHosts[0].LineStart)
+	}
+}
+
+// TestEditMode_LineDeltaUpdatesSubsequentHosts tests that when a saved block grows by N
+// lines, all hosts in the same file with LineStart > originalLineStart are shifted by N,
+// while hosts in other files are unaffected.
+func TestEditMode_LineDeltaUpdatesSubsequentHosts(t *testing.T) {
+	// Two hosts in the same file; one host in a different file.
+	hosts := []config.Host{
+		{
+			Alias:      "alpha",
+			Hostname:   "alpha.example.com",
+			Port:       "22",
+			SourceFile: "/home/user/.ssh/config",
+			LineStart:  1,
+			Groups:     []string{},
+		},
+		{
+			Alias:      "beta",
+			Hostname:   "beta.example.com",
+			Port:       "22",
+			SourceFile: "/home/user/.ssh/config",
+			LineStart:  5, // after alpha's block
+			Groups:     []string{},
+		},
+		{
+			Alias:      "gamma",
+			Hostname:   "gamma.example.com",
+			Port:       "22",
+			SourceFile: "/home/user/.ssh/config2", // different file — must NOT be shifted
+			LineStart:  1,
+			Groups:     []string{},
+		},
+	}
+	st := makeState(make(map[string]int))
+	m := New(hosts, st, "/tmp/state.json")
+
+	// alpha (index 0 in allHosts) is saved; its block grew by 1 line (lineDelta=+1).
+	updatedAlpha := config.Host{
+		Alias:      "alpha",
+		Hostname:   "alpha.example.com",
+		Port:       "22",
+		SourceFile: "/home/user/.ssh/config",
+		LineStart:  1, // newLineStart unchanged (no group was added in this scenario)
+		Groups:     []string{},
+	}
+
+	// Find alpha's index in allHosts (alphabetical, no frequent hosts → alpha first)
+	alphaIdx := -1
+	for i, h := range m.allHosts {
+		if h.Alias == "alpha" {
+			alphaIdx = i
+			break
+		}
+	}
+	if alphaIdx < 0 {
+		t.Fatal("alpha not found in allHosts")
+	}
+	betaIdx := -1
+	for i, h := range m.allHosts {
+		if h.Alias == "beta" {
+			betaIdx = i
+			break
+		}
+	}
+	if betaIdx < 0 {
+		t.Fatal("beta not found in allHosts")
+	}
+
+	newModel, _ := m.Update(editSavedMsg{
+		updated:           updatedAlpha,
+		index:             alphaIdx,
+		lineDelta:         1,             // block grew by 1
+		originalLineStart: 1,             // alpha's LineStart before the save
+		sourceFile:        "/home/user/.ssh/config",
+	})
+	m = newModel.(Model)
+
+	// beta (same file, LineStart=5 > originalLineStart=1) must be shifted to 6
+	if m.allHosts[betaIdx].LineStart != 6 {
+		t.Errorf("expected beta.LineStart=6 after drift, got %d", m.allHosts[betaIdx].LineStart)
+	}
+
+	// gamma (different file) must be unchanged
+	gammaIdx := -1
+	for i, h := range m.allHosts {
+		if h.Alias == "gamma" {
+			gammaIdx = i
+			break
+		}
+	}
+	if gammaIdx < 0 {
+		t.Fatal("gamma not found in allHosts")
+	}
+	if m.allHosts[gammaIdx].LineStart != 1 {
+		t.Errorf("expected gamma.LineStart=1 (unchanged), got %d", m.allHosts[gammaIdx].LineStart)
+	}
+}
+
 // TestNormalMode_EscQuits tests that pressing Esc in normal mode returns a quit command.
 func TestNormalMode_EscQuits(t *testing.T) {
 	hosts := makeHosts("alpha")

@@ -15,7 +15,37 @@ type mode int
 const (
 	modeNormal mode = iota
 	modeSearch
+	modeEdit
 )
+
+type editField int
+
+const (
+	fieldAlias editField = iota
+	fieldHostname
+	fieldUser
+	fieldPort
+	fieldIdentityFile
+	fieldGroups
+	fieldCount
+)
+
+// editForm holds the state for the in-place host editor.
+type editForm struct {
+	original    config.Host
+	fields      [fieldCount]string
+	activeField editField
+	statusMsg   string
+}
+
+// editSavedMsg is emitted after a successful in-place save.
+type editSavedMsg struct {
+	updated           config.Host
+	index             int
+	lineDelta         int    // how many lines the saved block grew (+) or shrank (-)
+	originalLineStart int    // LineStart of the host before the save (for range check)
+	sourceFile        string // which file was modified
+}
 
 // Model represents the TUI state for the host list.
 type Model struct {
@@ -29,6 +59,8 @@ type Model struct {
 	searchQuery string
 	state       *state.State
 	statePath   string
+	statusMsg   string
+	edit        *editForm
 }
 
 // New creates a new Model with hosts sorted by frequency and then alphabetically.
@@ -96,6 +128,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		newModel, cmd := handleKey(m, msg)
 		return newModel, cmd
+	case editSavedMsg:
+		if msg.index >= 0 && msg.index < len(m.allHosts) {
+			m.allHosts[msg.index] = msg.updated
+		}
+		// Shift LineStart for all hosts in the same file that appear after the saved block.
+		if msg.lineDelta != 0 {
+			for i := range m.allHosts {
+				if i != msg.index &&
+					m.allHosts[i].SourceFile == msg.sourceFile &&
+					m.allHosts[i].LineStart > msg.originalLineStart {
+					m.allHosts[i].LineStart += msg.lineDelta
+				}
+			}
+		}
+		m.edit = nil
+		m.mode = modeNormal
+		m.statusMsg = "Saved."
+		applySearch(&m)
+		return m, nil
 	}
 	return m, nil
 }
@@ -129,6 +180,9 @@ func applySearch(m *Model) {
 
 // View renders the current TUI display.
 func (m Model) View() string {
+	if m.mode == modeEdit {
+		return renderEditForm(m)
+	}
 	header := renderHeader(m)
 	list := renderList(m)
 	statusBar := renderStatusBar(m)

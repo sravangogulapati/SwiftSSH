@@ -149,8 +149,56 @@ func renderRow(m Model, i, aliasW, hostW, userW int) string {
 
 // renderStatusBar returns the status bar display.
 func renderStatusBar(m Model) string {
+	if m.statusMsg != "" {
+		return statusStyle.Render(m.statusMsg)
+	}
 	return statusStyle.Render(fmt.Sprintf(
-		"%d hosts | Enter: connect | esc: quit",
+		"%d hosts | Enter: connect | Ctrl+E: edit | esc: quit",
 		len(m.filtered),
 	))
+}
+
+// fieldLabels maps each editField to its display label (padded to 14 chars).
+var fieldLabels = [fieldCount]string{
+	fieldAlias:        "Alias         ",
+	fieldHostname:     "Hostname      ",
+	fieldUser:         "User          ",
+	fieldPort:         "Port          ",
+	fieldIdentityFile: "IdentityFile  ",
+	fieldGroups:       "Groups        ",
+}
+
+// renderEditForm renders the 6-field host editor form.
+func renderEditForm(m Model) string {
+	form := m.edit
+	var sb strings.Builder
+
+	sb.WriteString(titleStyle.Render("Edit Host"))
+	sb.WriteString("\n\n")
+
+	for i := editField(0); i < fieldCount; i++ {
+		label := fieldLabels[i]
+		value := form.fields[i]
+
+		if i == form.activeField {
+			sb.WriteString(selectedStyle.Render(label))
+			sb.WriteString("  ")
+			sb.WriteString(value)
+			sb.WriteString("█")
+		} else {
+			sb.WriteString(dimStyle.Render(label))
+			sb.WriteString("  ")
+			sb.WriteString(value)
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n")
+	if form.statusMsg != "" {
+		sb.WriteString(statusStyle.Render(form.statusMsg))
+	} else {
+		sb.WriteString(statusStyle.Render("↑/↓: next field  |  Enter: save  |  Esc: cancel  |  Ctrl+U: clear"))
+	}
+
+	return sb.String()
 }
