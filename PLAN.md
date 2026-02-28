@@ -300,41 +300,33 @@ swiftssh/
 - [x] Implement `IsKnownHost(hosts []config.Host, hostname string) bool` — returns true if any host has matching Hostname
 - [x] Implement `AppendHost(configPath, backupPath string, h config.Host) error`:
   1. Copy `configPath` to `backupPath` (overwrite backup)
-  2. Append a newline + formatted Host block to `configPath`:
-     ```
-     Host <alias>
-         Hostname <hostname>
-         User <user>
-     ```
+  2. Append formatted Host block (skips leading newline when file is empty)
   3. Return error if file operations fail
-
-#### TUI — Identity Picker (update `internal/tui/`)
-- [x] Add `availableKeys []string` and `keyPickerCursor int` to `Model`
-- [x] Add `selectedIdentity string` to `Model` (session-only, never persisted)
-- [x] On `i` key press in `modeNormal`:
-  - Call `ssh.ScanPublicKeys(platform.SSHKeyDir())`
-  - If no keys found: show status message "No SSH keys found in ~/.ssh"
-  - If keys found: set `mode = modeIdentityPicker`, populate `availableKeys`
-- [x] In `modeIdentityPicker`:
-  - `j`/`k` navigate the key list
-  - `Enter` sets `selectedIdentity` and returns to `modeNormal`
-  - `Esc` returns to `modeNormal` without changing identity
-- [x] In `views.go`: implement `renderIdentityPicker(m Model) string` — renders as an overlay list
+- [x] Implement `ReplaceHostBlock(h Host) (newLineStart int, lineDelta int, error)`:
+  1. Write backup to `h.SourceFile + ".bak"` before any modification
+  2. Locate block by `h.LineStart`; lenient stale check handles @group off-by-one
+  3. Replace block lines (including any preceding magic comment) with `buildHostBlock(h)`
+  4. Write atomically via temp file + rename
+  5. Return updated 1-based `LineStart` of Host directive and line count delta
+- [x] Helper `buildHostBlock(h)` — serialises Host to SSH config text; prepends `# @group` if groups set
+- [x] Helpers `splitLines`, `findBlockEnd`, `parseHostLine` for in-place editing
 
 #### TUI — Connect on Enter (update `internal/tui/keybindings.go`)
 - [x] On `Enter` in `modeNormal`:
   1. Get the selected `config.Host` from `m.filtered[m.cursor]`
   2. Call `state.RecordConnection` and save state
   3. Check `config.IsKnownHost` — if not known, call `config.AppendHost` to auto-entry
-  4. Return `tea.ExecProcess(ssh.ConnectCmd(host, m.selectedIdentity), connectCallback)`
-  5. On callback return, clear `selectedIdentity`
+  4. Return `tea.ExecProcess(ssh.ConnectCmd(host, ""), connectCallback)`
+
+> **Note:** `modeIdentityPicker` (i-key overlay) was scoped out after Phase 5 feedback — identity file is set via the Edit form (`Ctrl+E → IdentityFile field`) instead.
 
 #### Tests
 - [x] Test `ssh.BuildArgs` with identity set vs. empty
 - [x] Test `ssh.BuildArgs` with non-default port
 - [x] Test `config.AppendHost` writes correct block and creates backup
+- [x] Test `config.AppendHost` on empty file produces no leading blank line
 - [x] Test `config.IsKnownHost` returns correct results
-- [x] Test identity picker mode transitions in TUI model
+- [x] Test `config.ReplaceHostBlock` basic replace, magic comment add/remove, stale-line detection, backup creation, newLineStart & lineDelta return values
 
 ---
 
@@ -354,21 +346,59 @@ swiftssh/
 - [x] Documented all feedback in `FEEDBACK.md`
 - [x] Categorized and triaged all items (3 High Priority quick fixes)
 
-#### Implementation Planning
-- [x] F1 (High) — Column-aligned table layout: Quick Fix applied
-- [x] F2 (High) — `i: identity` missing from status bar: Quick Fix applied
-- [x] F3 (High) — CLI SSH passthrough (`swiftssh user@host`): Quick Fix applied
+#### Quick Fixes Applied
+- [x] F1 (High) — Column-aligned table layout: dynamic `colWidths()`, padded rows
+- [x] F2 (High) — Status bar updated: `Enter: connect | Ctrl+E: edit | esc: quit`
+- [x] F3 (High) — CLI SSH passthrough (`swiftssh user@host`): `runPassthrough()` + `looksLikeSSHArgs()` + `parseSSHTarget()`
 
-#### Documentation Updates
-- [x] Updated `PLAN.md` checklist
+#### Edit Mode — In-Place Host Editor (`Ctrl+E`)
+
+This was the largest feature delivered from Phase 6 feedback. Hosts can now be edited directly without touching the SSH config file manually.
+
+##### `internal/config/writer.go`
+- [x] `ReplaceHostBlock(h Host)` — atomic in-place rewrite of a host block (see Phase 5 tasks above)
+
+##### `internal/config/parser.go` — Bug Fixes Applied
+- [x] Fix: group leak — `# @group` before host 2 was being assigned to host 1 via direct `current.Groups` assignment; removed the direct assignment, prevLine mechanism is now the sole source
+- [x] Fix: `AppendHost` leading blank line — empty file no longer gets a blank first line before the host block
+
+##### `internal/tui/model.go`
+- [x] Add `modeEdit` to `mode` iota (alongside `modeNormal`, `modeSearch`)
+- [x] Add `editField` iota: `fieldAlias`, `fieldHostname`, `fieldUser`, `fieldPort`, `fieldIdentityFile`, `fieldGroups` (+ `fieldCount = 6`)
+- [x] Add `editForm` struct: `original Host`, `fields [6]string`, `activeField editField`, `statusMsg string`
+- [x] Add `editSavedMsg` struct: `updated Host`, `index int`, `lineDelta int`, `originalLineStart int`, `sourceFile string`
+- [x] Add `edit *editForm` field to `Model` (nil unless in edit mode)
+- [x] `Update()` handles `editSavedMsg`: patches `allHosts[index]`, shifts `LineStart` for all subsequent hosts in the same file if `lineDelta ≠ 0`, re-applies search, returns to `modeNormal`
+
+##### `internal/tui/keybindings.go`
+- [x] `Ctrl+E` in `modeNormal` and `modeSearch` → calls `openEditForm(m)`
+- [x] `openEditForm(m)`: validates `LineStart ≠ 0`, copies all 6 fields, converts groups slice to comma-separated string, sets `activeField = fieldAlias`
+- [x] `handleEditMode(m, msg)`: full key handler for edit form
+  - `↓` / `↑`: cycle activeField with wraparound
+  - `Backspace`: delete last rune in active field
+  - `Ctrl+U`: clear entire active field
+  - `Enter`: call `saveEditForm(m)`
+  - `Esc`: discard, return to `modeNormal`
+  - `Ctrl+C`: quit
+  - Any printable rune: append to active field
+- [x] `saveEditForm(m)`: trims all fields; validates Alias & Hostname non-empty; parses groups as comma-split; defaults empty Port to "22"; finds host by `(SourceFile, LineStart)`; calls `config.ReplaceHostBlock()`; emits `editSavedMsg` with `newLineStart` & `lineDelta`
+
+##### `internal/tui/views.go`
+- [x] `renderEditForm(m)`: 6-field form with label column (14-char padded), active field highlighted in reverse video, cursor `█` on active field value, footer key hints; shows validation error instead of hints on failure
+
+##### Tests
+- [x] `model_test.go`: `TestEditForm_FieldNavigation` — ↓/↑ cycles all 6 fields
+- [x] `model_test.go`: `TestEditForm_SaveUpdatesHost` — save propagates to `allHosts` and resets mode
+- [x] `model_test.go`: `TestEditForm_ValidationRejectsEmptyAlias` — empty Alias keeps edit mode open
+- [x] `model_test.go`: `TestEditForm_LineStartPropagation` — after saving host that gains a group (lineDelta=+1), subsequent host's LineStart is incremented
 
 ---
 
 ## Phase 7 — Fuzzy Search
 
-**Goal:** `/` activates search mode; typing filters the host list in real-time using fuzzy matching against alias, hostname, and groups.
+**Goal:** Any printable keypress activates search mode; typing filters the host list in real-time using fuzzy matching against alias, hostname, and groups.
 **Depends on:** Phase 4, Phase 6 (feedback iteration if search changes required)
-**Verify:** Pressing `/` shows search prompt; typing filters the list; `Esc`/`Enter` exits search
+**Verify:** Typing any character shows search prompt; typing filters the list; `Esc`/`Backspace`-to-empty exits search; `Enter` connects to selected host
 
 ### Tasks
 
@@ -382,17 +412,18 @@ swiftssh/
   - Reset `m.cursor = 0` and `m.viewport = 0` after filtering
 
 #### `internal/tui/keybindings.go` (update)
-- [x] On `/` in `modeNormal`: set `mode = modeSearch`, clear `searchQuery`
+- [x] Any printable rune in `modeNormal`: enter `modeSearch` with that character as the first query character
 - [x] In `modeSearch`, on `tea.KeyMsg`:
   - Printable chars: append to `searchQuery`, call `applySearch`
-  - `Backspace`: trim last rune from `searchQuery`, call `applySearch`
+  - `Backspace`: trim last rune; if query becomes empty, return to `modeNormal`
+  - `ctrl+w`: clear `searchQuery`, return to `modeNormal`
   - `Esc`: clear `searchQuery`, `applySearch`, set `mode = modeNormal`
-  - `Enter`: set `mode = modeNormal` (keep current filtered results)
+  - `Enter`: connect to selected host (same as `Enter` in normal mode)
+  - `down`/`up`: navigate list without exiting search
   - `ctrl+c`: quit
 
 #### `internal/tui/views.go` (update)
-- [x] In `renderHeader`: show `/ <query>█` search prompt when in `modeSearch`
-- [ ] Highlight matched characters in rendered host rows (optional, nice-to-have for MVP)
+- [x] In `renderHeader`: show `<query>█` prompt when in `modeSearch`; show `"Type to search"` hint in `modeNormal`
 
 #### Tests
 - [x] Test `applySearch` with empty query returns full host list
@@ -403,73 +434,30 @@ swiftssh/
 
 ---
 
-## Phase 8 — Health Checks
+## Phase 8 — First-Run UX & CLI Polish
 
-**Goal:** `p` toggle fires async TCP dials to port 22 for viewport-visible hosts only. Results appear as status indicators without blocking the TUI.
-**Depends on:** Phase 4, Phase 6 (feedback iteration if health check UX changes required)
-**Verify:** Pressing `p` shows TCP status icons next to hosts in the viewport; off-screen hosts show nothing
+**Goal:** Detect first run and print alias suggestion. Wire remaining CLI flags. Ensure the app feels complete.
+**Depends on:** Phases 3, 5, Phase 6
+**Verify:** First `./swiftssh` run prints alias suggestion; subsequent runs go straight to TUI; `--version` and `--config` work
 
-### Tasks
-
-#### `internal/health/check.go`
-- [ ] Implement `CheckHost(hostname, port string, timeout time.Duration) bool`:
-  - TCP dial to `hostname:port` (use `port` from `config.Host`, default `"22"`)
-  - Return `true` if connection succeeds (close immediately after)
-  - Return `false` on timeout or refusal
-  - Use `net.DialTimeout`
-- [ ] Define `Result` struct: `Alias string`, `Reachable bool`
-- [ ] Implement `CheckHosts(hosts []config.Host, results chan<- Result)`:
-  - Spawn one goroutine per host
-  - Each goroutine calls `CheckHost` and sends to `results` channel
-  - Use 2-second timeout per dial
-
-#### `internal/health/check_test.go`
-- [ ] Test `CheckHost` against `localhost:22` (skip if port not open with `t.Skip`)
-- [ ] Test `CheckHost` against a deliberately closed port returns `false`
-- [ ] Test `CheckHosts` sends one result per host
-
-#### TUI — Health Check Integration (update `internal/tui/`)
-- [ ] Add `pingEnabled bool` and `pingResults map[string]bool` to `Model`
-- [ ] Define a `pingResultMsg` custom tea message type: `type pingResultMsg health.Result`
-- [ ] On `p` key: toggle `pingEnabled`; if enabling, trigger `firePingChecks(m)`
-- [ ] Implement `firePingChecks(m Model) tea.Cmd`:
-  - Get visible hosts: `m.filtered[m.viewport : min(m.viewport+m.viewHeight, len(m.filtered))]`
-  - Spawn goroutine calling `health.CheckHosts(visibleHosts, results)`
-  - Return a `tea.Cmd` that listens for `pingResultMsg` and updates the model
-- [ ] In `Update`, handle `pingResultMsg`: update `m.pingResults[msg.Alias] = msg.Reachable`
-- [ ] Re-fire ping checks when viewport scrolls (only if `pingEnabled`)
-- [ ] In `views.go`: render `●` (green/reachable) or `○` (grey/unreachable) before each host when `pingEnabled`
-
-#### Tests
-- [ ] Test ping toggle transitions model state correctly
-- [ ] Test viewport change triggers new ping batch
-- [ ] Test `pingResultMsg` updates `pingResults` map
-
----
-
-## Phase 9 — First-Run UX & CLI Polish
-
-**Goal:** Detect first run and print alias suggestion. Wire all CLI flags. Ensure the app feels complete.
-**Depends on:** Phases 3, 5, Phase 6 (feedback may inform alias/flag improvements)
-**Verify:** First `./swiftssh` run prints alias suggestion; subsequent runs go straight to TUI; `--help` and `--version` work
+### Already Done
+- [x] `--version` / `-v` — prints `swiftssh v0.1.0` and exits
+- [x] `--help` / `-h` — handled automatically by `flag.Parse()`
+- [x] Config parse error: prints `"Error: could not parse SSH config: <err>"` to stderr, exits 1
+- [x] SSH passthrough: `swiftssh user@host [flags]` — auto-saves unknown host to config, hands off to system `ssh`
 
 ### Tasks
 
-#### `cmd/swiftssh/main.go` (final)
-- [ ] Define and parse flags using `flag` package:
-  - `--version` / `-v` — print `swiftssh v0.1.0` and exit
-  - `--help` / `-h` — print usage summary and exit
-  - `--config <path>` — override SSH config path
-  - `--no-frequent` — disable the "Frequent" section (show flat alphabetical list)
+#### `cmd/swiftssh/main.go` (update)
+- [ ] Add `--config <path>` flag — override SSH config path (pass to `config.Parse` and `config.AppendHost`)
+- [ ] Add `--no-frequent` flag — skip `state.FrequentHosts` ordering, show flat alphabetical list instead
 - [ ] Implement first-run detection:
-  - If `state.FirstRun == true`: print alias suggestion block to stderr and set `state.FirstRun = false`, save state
+  - If `state.FirstRun == true`: print alias suggestion block to stderr, set `state.FirstRun = false`, save state
   - Alias suggestions: `alias s='swiftssh'` for bash/zsh, `Set-Alias s swiftssh` for PowerShell
-- [ ] Handle config parse error gracefully: print `"Error: could not parse SSH config: <err>"` to stderr, exit 1
 - [ ] Handle empty host list: print `"No hosts found in <path>. Add entries to your SSH config."` and exit 0
 
 #### First-Run Output Format
-- [ ] Print to stderr (not stdout, so piping still works)
-- [ ] Format:
+- [ ] Print to stderr (not stdout, so piping still works):
   ```
   Welcome to SwiftSSH!
   To use the 's' alias, add one of the following to your shell profile:
@@ -482,47 +470,50 @@ swiftssh/
   ```
 
 #### Tests
-- [ ] Test `--version` flag output format
-- [ ] Test first-run detection correctly updates state
-- [ ] Test empty host list exits with message (not error code)
+- [ ] Test first-run detection prints alias block and sets `FirstRun = false`
 - [ ] Test `--config` flag passes alternative path to parser
+- [ ] Test `--no-frequent` flag returns flat alphabetical list
+- [ ] Test empty host list exits 0 with message
 
 ---
 
-## Phase 10 — Testing & QA
+## Phase 9 — Testing & QA
 
 **Goal:** Bring test coverage to a high standard across all packages. Fix edge cases discovered during feedback iteration.
-**Depends on:** All prior phases (especially Phase 6 feedback findings)
-**Verify:** `make test-cover` shows >80% coverage across all packages; `go vet ./...` is clean
+**Depends on:** All prior phases
+**Verify:** `go test ./...` passes; `go vet ./...` is clean; coverage is solid across core packages
 
 ### Tasks
 
 #### Coverage Pass
-- [ ] Run `make test-cover` and identify uncovered paths in each package
+- [ ] Run `go test -cover ./...` and identify uncovered paths in each package
 - [ ] `internal/config/parser_test.go` — add tests for:
   - Config file with Windows-style CRLF line endings
   - Multi-word group names (e.g., `# @group My Work, Client Projects`)
   - Host with no Hostname directive (should still parse, Hostname field empty)
   - Very large config file (1,000+ hosts) — verify parse completes in < 1 second
+- [ ] `internal/config/writer_test.go` — add tests for:
+  - `AppendHost` when config file does not yet exist
 - [ ] `internal/tui/model_test.go` — add tests for:
   - `View()` does not panic with an empty host list
   - `View()` does not panic with cursor at the very last host
-  - State is correctly recorded on successful connection (mock SSH exec)
+  - Backspace-to-empty in search mode returns to `modeNormal`
+  - `ctrl+w` in search mode clears query and returns to `modeNormal`
+  - `ctrl+i` with no keys sets `statusMsg` (no mode change)
 - [ ] `internal/state/state_test.go` — add test for corrupted JSON file (returns fresh state, no crash)
 - [ ] `internal/ssh/keys_test.go` — add test for directory with no `.pub` files
 
 #### Code Quality
 - [ ] Run `go vet ./...` — fix all warnings
 - [ ] Run `go fmt ./...` — ensure consistent formatting
-- [ ] Check all exported functions/types have doc comments
-- [ ] Verify no `panic()` calls in production paths (only allowed in tests via `t.Fatal`)
+- [ ] Verify no `panic()` calls in production paths
 
 ---
 
-## Phase 11 — Release Preparation
+## Phase 10 — Release Preparation
 
 **Goal:** README, GitHub Actions CI, cross-platform release builds, and GitHub release artifacts.
-**Depends on:** Phase 10
+**Depends on:** Phase 9
 **Verify:** CI passes on push; `goreleaser` (or manual build matrix) produces binaries for all targets
 
 ### Tasks
@@ -546,7 +537,8 @@ swiftssh/
   - Use `go build -ldflags="-s -w -X main.version=${{ github.ref_name }}"` to embed version
 
 #### Version Embedding
-- [ ] Add `var version = "dev"` to `cmd/swiftssh/main.go`
+- [ ] Change `const Version = "0.1.0"` to `var version = "dev"` in `cmd/swiftssh/main.go` (ldflags requires a `var`, not a `const`)
+- [ ] Update `--version` output to use `version` var instead of `Version` const
 - [ ] Pass `-X main.version=<tag>` in release build ldflags so `--version` shows real tag
 
 #### Final Checks
@@ -568,8 +560,7 @@ swiftssh/
 | 4 | TUI Foundation | Scrollable host list, vim nav | Run the app, navigate with j/k |
 | 5 | SSH Exec + Identity | Real SSH connections, key picker | Connect to a real host |
 | 6 | User Feedback & Iteration | Feedback documented, UX refined | Manual testing + feature triage |
-| 7 | Fuzzy Search | Live filtered search | Press `/`, type to filter |
-| 8 | Health Checks | Async TCP ping per visible host | Press `p`, see status icons |
-| 9 | First-Run + CLI | Alias suggestion, all flags | `--version`, `--help`, first run |
-| 10 | Testing & QA | >80% coverage, clean vet | `make test-cover` |
-| 11 | Release | CI pipeline + GitHub Release | Tag v0.1.0 |
+| 7 | Fuzzy Search | Live filtered search | Type any char to filter |
+| 8 | First-Run + CLI | Alias suggestion, remaining flags | First run, `--config`, `--no-frequent` |
+| 9 | Testing & QA | >80% coverage, clean vet | `make test-cover` |
+| 10 | Release | CI pipeline + GitHub Release | Tag v0.1.0 |
