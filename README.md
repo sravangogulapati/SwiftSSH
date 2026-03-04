@@ -1,6 +1,6 @@
 # sssh — Swift SSH
 
-An interactive, searchable TUI for managing SSH connections from `~/.ssh/config`.
+Use `sssh` instead of `ssh` and your connections are saved automatically. Run `sssh` anytime to browse, search, and launch them — no more memorising hostnames.
 
 ```
   sssh                    ALIAS          HOSTNAME            USER       GROUPS
@@ -13,15 +13,15 @@ An interactive, searchable TUI for managing SSH connections from `~/.ssh/config`
 
 ## Features
 
-- Scrollable, column-aligned host list
-- Vim-style navigation (`j`/`k`)
-- Live fuzzy search — just start typing
-- In-place host editor (`Ctrl+E`) — edit all fields without touching the file
-- Connection frequency tracking — frequent hosts bubble to the top
+- Browse and launch any host in your SSH config with Enter
+- Fast fuzzy search across alias, hostname, and groups
+- Drop-in `ssh` replacement — `sssh user@host -p 2222 -i ./ssh_key.pem` saves unknown hosts automatically (identity paths stored as absolute)
+- Frequent hosts sorted to the top by connection count
+- In-place editor (`Ctrl+E`) — edit any host's fields without touching the config file
 - Magic comment groups: `# @group Work, Personal`
-- SSH passthrough: `sssh user@host -p 2222` auto-saves unknown hosts and hands off to system `ssh`
-- `--config` flag to point at a non-default SSH config
-- `--no-frequent` flag for flat alphabetical ordering
+- Scrollable, column-aligned list with ↑/↓ arrow keys
+- `--config` to use a non-default SSH config file
+- `--no-frequent` for flat alphabetical ordering
 - Cross-platform: Unix and Windows Terminal
 
 ## Installation
@@ -62,8 +62,8 @@ sssh user@host -p 2222 -i ~/.ssh/id_ed25519
 
 | Key | Action |
 |-----|--------|
-| `j` / `↓` | Move cursor down |
-| `k` / `↑` | Move cursor up |
+| `↓` | Move cursor down |
+| `↑` | Move cursor up |
 | `Enter` | Connect to selected host |
 | `Ctrl+E` | Open edit form |
 | any printable char | Enter search mode |
