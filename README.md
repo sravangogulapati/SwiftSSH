@@ -2,14 +2,7 @@
 
 Use `sssh` instead of `ssh` and your connections are saved automatically. Run `sssh` anytime to browse, search, and launch them — no more memorising hostnames.
 
-```
-  sssh                    ALIAS          HOSTNAME            USER       GROUPS
-─────────────────────── ─────────────── ─────────────────── ────────── ──────────
-  > dev                  dev             192.168.1.10        ubuntu     Work
-    prod                 prod.example.com                               Work
-    pi                   10.0.0.5        pi                             Home
-    bastion              bastion.co      deploy
-```
+![sssh demo](assets/screenrecording.gif)
 
 ## Features
 
